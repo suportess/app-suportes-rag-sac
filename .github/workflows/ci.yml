@@ -9,9 +9,7 @@ jobs:
   build:
     uses: suportess/suportes-workflow/.github/workflows/docker-build.yml@main
     with:
-      image_name: app-suportes-rag-sac
-      dockerfile: Dockerfile
-      platform: linux/amd64
+      app_name: app-suportes-rag-sac
     secrets:
       DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
       DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
