@@ -1,0 +1,28 @@
+services:
+  app-suportes-rag-sac:
+    image: ${DOCKER_USERNAME}/app-suportes-rag-sac:${IMAGE_TAG:-latest}
+    container_name: app-suportes-rag-sac
+    restart: unless-stopped
+    env_file:
+      - .env.app
+    networks:
+      - infra-net
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.spec-validator.rule=Host(`spec-validator.suportes.tec.br`)"
+      - "traefik.http.routers.spec-validator.entrypoints=websecure"
+      - "traefik.http.routers.spec-validator.tls.certresolver=letsencrypt"
+      - "traefik.http.services.spec-validator.loadbalancer.server.port=8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q '\"UP\"'"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+networks:
+  infra-net:
+    external: true
+  proxy:
+    external: true

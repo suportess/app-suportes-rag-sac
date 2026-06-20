@@ -1,0 +1,155 @@
+{
+  "_type": "export",
+  "__export_format": 4,
+  "__export_date": "2026-06-20T00:00:00.000Z",
+  "__export_source": "insomnia.desktop.app:v2023.5.8",
+  "resources": [
+    {
+      "_id": "wrk_spec_validator",
+      "_type": "workspace",
+      "name": "SAP Spec Validator API",
+      "description": "API para validacao de especificacoes funcionais SAP ABAP",
+      "scope": "collection",
+      "parentId": null
+    },
+    {
+      "_id": "env_base",
+      "_type": "environment",
+      "parentId": "wrk_spec_validator",
+      "name": "Base Environment",
+      "data": {
+        "base_url": "http://localhost:8080"
+      },
+      "dataPropertyOrder": {
+        "&": ["base_url"]
+      }
+    },
+    {
+      "_id": "fld_documents",
+      "_type": "request_group",
+      "parentId": "wrk_spec_validator",
+      "name": "Documents",
+      "description": "Operacoes com documentos de especificacao"
+    },
+    {
+      "_id": "fld_validations",
+      "_type": "request_group",
+      "parentId": "wrk_spec_validator",
+      "name": "Validations",
+      "description": "Consulta de relatorios de validacao"
+    },
+    {
+      "_id": "req_upload_document",
+      "_type": "request",
+      "parentId": "fld_documents",
+      "name": "Upload Document",
+      "description": "Faz upload de um documento de especificacao (somente upload, sem validacao)",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/v1/documents",
+      "body": {
+        "mimeType": "multipart/form-data",
+        "params": [
+          {
+            "id": "param_file_upload",
+            "name": "file",
+            "value": "",
+            "description": "Arquivo de especificacao (PDF, DOCX, etc.)",
+            "type": "file"
+          }
+        ]
+      },
+      "headers": [],
+      "parameters": [],
+      "authentication": {}
+    },
+    {
+      "_id": "req_upload_and_validate",
+      "_type": "request",
+      "parentId": "fld_documents",
+      "name": "Upload and Validate",
+      "description": "Faz upload de um documento e executa a validacao automaticamente",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/v1/documents/validate",
+      "body": {
+        "mimeType": "multipart/form-data",
+        "params": [
+          {
+            "id": "param_file_validate",
+            "name": "file",
+            "value": "",
+            "description": "Arquivo de especificacao (PDF, DOCX, etc.)",
+            "type": "file"
+          }
+        ]
+      },
+      "headers": [],
+      "parameters": [],
+      "authentication": {}
+    },
+    {
+      "_id": "req_validate_existing",
+      "_type": "request",
+      "parentId": "fld_documents",
+      "name": "Validate Existing Document",
+      "description": "Executa a validacao de um documento ja cadastrado pelo ID",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/v1/documents/1/validate",
+      "body": {},
+      "headers": [],
+      "parameters": [],
+      "authentication": {}
+    },
+    {
+      "_id": "req_list_documents",
+      "_type": "request",
+      "parentId": "fld_documents",
+      "name": "List Documents",
+      "description": "Lista documentos com paginacao",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/v1/documents",
+      "body": {},
+      "headers": [],
+      "parameters": [
+        {
+          "id": "param_page",
+          "name": "page",
+          "value": "0",
+          "description": "Numero da pagina (zero-based)"
+        },
+        {
+          "id": "param_size",
+          "name": "size",
+          "value": "10",
+          "description": "Quantidade de itens por pagina"
+        }
+      ],
+      "authentication": {}
+    },
+    {
+      "_id": "req_get_document",
+      "_type": "request",
+      "parentId": "fld_documents",
+      "name": "Get Document",
+      "description": "Busca um documento pelo ID",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/v1/documents/1",
+      "body": {},
+      "headers": [],
+      "parameters": [],
+      "authentication": {}
+    },
+    {
+      "_id": "req_get_report",
+      "_type": "request",
+      "parentId": "fld_validations",
+      "name": "Get Validation Report",
+      "description": "Consulta um relatorio de validacao pelo ID",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/v1/validations/1",
+      "body": {},
+      "headers": [],
+      "parameters": [],
+      "authentication": {}
+    }
+  ]
+}

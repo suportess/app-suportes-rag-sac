@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  # ============================================================
+  # PostgreSQL 16 - Banco de dados principal
+  # ============================================================
+  # Evolucao futura: adicionar extensao pgvector para suporte a RAG
+  # CREATE EXTENSION IF NOT EXISTS vector;
+  # Isso permitira armazenar embeddings dos documentos e fazer
+  # busca semantica por similaridade (nearest neighbor search)
+  # ============================================================
+  postgres:
+    container_name: spec-validator-postgres
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: spec_validator
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - spec_validator_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d spec_validator"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================================
+  # RabbitMQ (futuro - descomentar quando implementar filas)
+  # ============================================================
+  # Filas planejadas:
+  #   - document.extraction.queue   (extrair texto do documento)
+  #   - document.validation.queue   (enviar para validacao IA)
+  #   - document.validation.result.queue (resultado da validacao)
+  # ============================================================
+  # rabbitmq:
+  #   container_name: spec-validator-rabbitmq
+  #   image: rabbitmq:3-management
+  #   restart: unless-stopped
+  #   environment:
+  #     RABBITMQ_DEFAULT_USER: guest
+  #     RABBITMQ_DEFAULT_PASS: guest
+  #   ports:
+  #     - "5672:5672"
+  #     - "15672:15672"
+
+volumes:
+  spec_validator_data:
+    driver: local

@@ -1,0 +1,34 @@
+# Build
+app/target/
+*.class
+*.jar
+*.war
+
+# Environment
+.env
+.env.app
+*.env
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+*~
+
+# Editor backups
+*.properties~
+*.java~
+*.xml~
+*.yml~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Uploads
+uploads/
+
+# Logs
+*.log
