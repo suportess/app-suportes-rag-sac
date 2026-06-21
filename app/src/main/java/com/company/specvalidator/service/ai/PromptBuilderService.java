@@ -69,7 +69,7 @@ public class PromptBuilderService {
                 }
 
                 Documento para analise:
-
+                OBS: POR ENQUANTO NÂO COBRE O CRITERIO DE ACEITE ITEM 12, não deve ser cobrado ok
                 %s
                 """.formatted(documentText);
     }

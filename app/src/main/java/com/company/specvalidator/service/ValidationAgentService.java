@@ -121,16 +121,6 @@ public class ValidationAgentService {
                         .build()
         );
 
-        var localIssues = new ArrayList<>(structureValidator.validate(normalized.getNormalizedText()));
-        localIssues.addAll(sapAbapValidator.validate(normalized.getNormalizedText()));
-        localIssues.addAll(businessRuleValidator.validate(normalized.getNormalizedText()));
-        localIssues.addAll(integrationValidator.validate(normalized.getNormalizedText()));
-        localIssues.addAll(testScenarioValidator.validate(normalized.getNormalizedText()));
-
-        log.info("Validadores locais encontraram {} issues", localIssues.size());
-
-        aiResponse.getIssues().addAll(0, localIssues);
-
         int recalculatedScore = scoreCalculator.calculateScore(aiResponse.getIssues());
         aiResponse.setScore(recalculatedScore);
         aiResponse.setStatus(scoreCalculator.calculateStatus(recalculatedScore, aiResponse.getIssues()));
