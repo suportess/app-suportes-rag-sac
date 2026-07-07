@@ -1,5 +1,6 @@
 package com.company.specvalidator.mapper;
 
+import com.company.specvalidator.dto.response.SectionStatus;
 import com.company.specvalidator.dto.response.ValidationIssueResponse;
 import com.company.specvalidator.dto.response.ValidationQuestionResponse;
 import com.company.specvalidator.dto.response.ValidationReportResponse;
@@ -19,7 +20,8 @@ public class ValidationReportMapper {
             List<ValidationQuestionEntity> questions,
             List<String> positivePoints,
             List<String> missingSections,
-            String riskAnalysis) {
+            String riskAnalysis,
+            List<SectionStatus> sectionAnalysis) {
 
         return ValidationReportResponse.builder()
                 .reportId(report.getId())
@@ -34,6 +36,7 @@ public class ValidationReportMapper {
                 .positivePoints(positivePoints)
                 .missingSections(missingSections)
                 .riskAnalysis(riskAnalysis)
+                .sectionAnalysis(sectionAnalysis)
                 .build();
     }
 

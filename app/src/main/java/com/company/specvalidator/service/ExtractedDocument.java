@@ -12,4 +12,6 @@ import lombok.NoArgsConstructor;
 public class ExtractedDocument {
     private String rawText;
     private Integer pageCount;
+    @Builder.Default
+    private java.util.Map<String, String> sections = new java.util.LinkedHashMap<>();
 }

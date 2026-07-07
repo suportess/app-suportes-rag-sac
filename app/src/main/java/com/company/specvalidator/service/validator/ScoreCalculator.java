@@ -21,18 +21,34 @@ public class ScoreCalculator {
                 score -= 3;
             }
         }
-        return Math.max(score, 0);
+        return score; // sem floor — score pode ser negativo para EFs muito ruins
     }
 
-    public ValidationStatus calculateStatus(int score, List<AiValidationIssue> issues) {
+    public ValidationStatus calculateStatus(int rawScore, List<AiValidationIssue> issues) {
         long criticalCount = issues.stream().filter(i -> i.getSeverity() == IssueSeverity.CRITICAL).count();
 
-        if (score >= 85 && criticalCount == 0) {
+        if (rawScore >= 85 && criticalCount == 0) {
             return ValidationStatus.APPROVED;
         }
-        if (score >= 60 && criticalCount < 3) {
+        if (criticalCount <= 3 && rawScore >= 30) {
             return ValidationStatus.APPROVED_WITH_WARNINGS;
         }
         return ValidationStatus.REJECTED;
+    }
+
+    public int normalizeScore(int rawScore, ValidationStatus status) {
+        return switch (status) {
+            case APPROVED -> rawScore;
+            case APPROVED_WITH_WARNINGS -> Math.max(30, Math.min(84, rawScore));
+            case REJECTED -> {
+                // Mapeia lineamente [-100, 29] → [1, 29]
+                // EF com poucas falhas rejeitadas (raw 29) → exibe 29
+                // EF muito ruim (raw ≤ -100) → exibe 1
+                int worstCase = -100;
+                int bestRejected = 29;
+                int clamped = Math.max(worstCase, Math.min(bestRejected, rawScore));
+                yield 1 + (int) Math.round((double)(clamped - worstCase) / (bestRejected - worstCase) * 28);
+            }
+        };
     }
 }

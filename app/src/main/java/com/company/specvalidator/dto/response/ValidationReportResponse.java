@@ -25,4 +25,5 @@ public class ValidationReportResponse {
     private List<String> positivePoints;
     private List<String> missingSections;
     private String riskAnalysis;
+    private List<SectionStatus> sectionAnalysis;
 }

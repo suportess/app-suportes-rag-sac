@@ -96,7 +96,8 @@ public class DocumentController {
                 questions,
                 validationReportService.parseStringList(report.getPositivePointsJson()),
                 validationReportService.parseStringList(report.getMissingSectionsJson()),
-                report.getRiskAnalysis()
+                report.getRiskAnalysis(),
+                validationReportService.parseSectionStatusList(report.getSectionAnalysisJson())
         );
     }
 }

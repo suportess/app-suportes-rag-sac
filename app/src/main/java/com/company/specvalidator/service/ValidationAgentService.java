@@ -6,6 +6,7 @@ import com.company.specvalidator.entity.DocumentEntity;
 import com.company.specvalidator.entity.ExtractedDocumentEntity;
 import com.company.specvalidator.entity.ValidationReportEntity;
 import com.company.specvalidator.enums.DocumentStatus;
+import com.company.specvalidator.enums.ValidationStatus;
 import com.company.specvalidator.exception.ResourceValidationException;
 import com.company.specvalidator.repository.ExtractedDocumentRepository;
 import com.company.specvalidator.service.ai.AiProviderClient;
@@ -44,6 +45,7 @@ public class ValidationAgentService {
     private final TestScenarioValidator testScenarioValidator;
     private final ScoreCalculator scoreCalculator;
     private final FileStorageService fileStorageService;
+    private final SectionAnalyzerService sectionAnalyzerService;
 
     public ValidationAgentService(DocumentService documentService,
                                   TextExtractionService textExtractionService,
@@ -59,7 +61,8 @@ public class ValidationAgentService {
                                   IntegrationValidator integrationValidator,
                                   TestScenarioValidator testScenarioValidator,
                                   ScoreCalculator scoreCalculator,
-                                  FileStorageService fileStorageService) {
+                                  FileStorageService fileStorageService,
+                                  SectionAnalyzerService sectionAnalyzerService) {
         this.documentService = documentService;
         this.textExtractionService = textExtractionService;
         this.documentNormalizerService = documentNormalizerService;
@@ -75,6 +78,7 @@ public class ValidationAgentService {
         this.testScenarioValidator = testScenarioValidator;
         this.scoreCalculator = scoreCalculator;
         this.fileStorageService = fileStorageService;
+        this.sectionAnalyzerService = sectionAnalyzerService;
     }
 
     @Transactional
@@ -104,7 +108,8 @@ public class ValidationAgentService {
         log.info("Iniciando validacao do documento id={}", documentId);
 
         ExtractedDocument extracted = extract(documentId, directFile);
-        log.info("Texto extraido: {} caracteres", extracted.getRawText().length());
+        log.info("Texto extraido: {} caracteres, {} secoes detectadas via headings",
+                extracted.getRawText().length(), extracted.getSections().size());
 
         NormalizedDocument normalized = documentNormalizerService.normalize(extracted.getRawText());
         log.info("Texto normalizado: {} caracteres, {} secoes detectadas",
@@ -121,11 +126,16 @@ public class ValidationAgentService {
                         .build()
         );
 
-        int recalculatedScore = scoreCalculator.calculateScore(aiResponse.getIssues());
-        aiResponse.setScore(recalculatedScore);
-        aiResponse.setStatus(scoreCalculator.calculateStatus(recalculatedScore, aiResponse.getIssues()));
+        aiResponse.setSectionAnalysis(
+                sectionAnalyzerService.analyze(extracted.getSections(), extracted.getRawText()));
 
-        log.info("Score recalculado: {}, status: {}", recalculatedScore, aiResponse.getStatus());
+        int rawScore = scoreCalculator.calculateScore(aiResponse.getIssues());
+        ValidationStatus status = scoreCalculator.calculateStatus(rawScore, aiResponse.getIssues());
+        int normalizedScore = scoreCalculator.normalizeScore(rawScore, status);
+        aiResponse.setScore(normalizedScore);
+        aiResponse.setStatus(status);
+
+        log.info("Score raw: {}, normalizado: {}, status: {}", rawScore, normalizedScore, status);
 
         ValidationReportEntity report = validationReportService.saveReport(document, aiResponse);
 

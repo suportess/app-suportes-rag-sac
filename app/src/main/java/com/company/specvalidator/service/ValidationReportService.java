@@ -12,6 +12,7 @@ import com.company.specvalidator.exception.ResourceValidationException;
 import com.company.specvalidator.repository.ValidationIssueRepository;
 import com.company.specvalidator.repository.ValidationQuestionRepository;
 import com.company.specvalidator.repository.ValidationReportRepository;
+import com.company.specvalidator.dto.response.SectionStatus;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
@@ -52,6 +53,7 @@ public class ValidationReportService {
                 .finalRecommendation(response.getFinalRecommendation())
             .positivePointsJson(toJson(response.getPositivePoints()))
             .missingSectionsJson(toJson(response.getMissingSections()))
+            .sectionAnalysisJson(toJsonObject(response.getSectionAnalysis()))
             .riskAnalysis(response.getRiskAnalysis() == null ? "" : response.getRiskAnalysis())
                 .criticalIssuesCount(critical)
                 .moderateIssuesCount(moderate)
@@ -115,9 +117,26 @@ public class ValidationReportService {
         }
     }
 
+    public List<SectionStatus> parseSectionStatusList(String json) {
+        try {
+            if (json == null || json.isBlank()) return List.of();
+            return objectMapper.readValue(json, new TypeReference<>() {});
+        } catch (Exception e) {
+            return List.of();
+        }
+    }
+
     private String toJson(List<String> values) {
         try {
             return objectMapper.writeValueAsString(values == null ? List.of() : values);
+        } catch (Exception e) {
+            return "[]";
+        }
+    }
+
+    private String toJsonObject(Object value) {
+        try {
+            return objectMapper.writeValueAsString(value == null ? List.of() : value);
         } catch (Exception e) {
             return "[]";
         }

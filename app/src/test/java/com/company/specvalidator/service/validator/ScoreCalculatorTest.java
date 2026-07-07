@@ -58,8 +58,8 @@ class ScoreCalculatorTest {
     }
 
     @Test
-    void testMinimumScoreIsZero() {
-        // 6 CRITICAL issues = -120 points, but minimum should be 0
+    void testScoreCanBeNegativeForVeryBadEfs() {
+        // 6 CRITICALs = 100 - 120 = -20 (sem floor)
         List<AiValidationIssue> issues = List.of(
                 issueWith(IssueSeverity.CRITICAL),
                 issueWith(IssueSeverity.CRITICAL),
@@ -69,7 +69,34 @@ class ScoreCalculatorTest {
                 issueWith(IssueSeverity.CRITICAL)
         );
         int score = calculator.calculateScore(issues);
-        assertEquals(0, score, "Score should never go below 0");
+        assertEquals(-20, score, "Raw score nao tem floor — pode ser negativo");
+    }
+
+    @Test
+    void testNormalizeScoreRejectedMapsTo1to29() {
+        // raw 0 deve mapear para valor entre 1 e 29
+        int normalized = calculator.normalizeScore(0, ValidationStatus.REJECTED);
+        assertTrue(normalized >= 1 && normalized <= 29, "Score REJECTED normalizado deve estar entre 1 e 29");
+    }
+
+    @Test
+    void testNormalizeScoreRejectedBarelyRejectedIsNear29() {
+        // raw 29 (limite superior do REJECTED) deve normalizar para 29
+        int normalized = calculator.normalizeScore(29, ValidationStatus.REJECTED);
+        assertEquals(29, normalized);
+    }
+
+    @Test
+    void testNormalizeScoreRejectedExtremeIsOne() {
+        // raw -100 (pior caso) deve normalizar para 1
+        int normalized = calculator.normalizeScore(-100, ValidationStatus.REJECTED);
+        assertEquals(1, normalized);
+    }
+
+    @Test
+    void testNormalizeScoreApprovedWithWarningsPreserved() {
+        int normalized = calculator.normalizeScore(55, ValidationStatus.APPROVED_WITH_WARNINGS);
+        assertEquals(55, normalized);
     }
 
     @Test
@@ -81,8 +108,7 @@ class ScoreCalculatorTest {
     }
 
     @Test
-    void testApprovedWithWarningsStatus() {
-        // score >= 60, < 3 critical issues
+    void testApprovedWithWarningsWithOneCritical() {
         List<AiValidationIssue> issues = List.of(
                 issueWith(IssueSeverity.CRITICAL),
                 issueWith(IssueSeverity.MODERATE)
@@ -92,28 +118,43 @@ class ScoreCalculatorTest {
     }
 
     @Test
-    void testRejectedStatus() {
-        // score < 60
+    void testApprovedWithWarningsWithThreeCriticalsAndDecentScore() {
+        // 3 CRITICALs, sem mais nada: score = 100 - 60 = 40 >= 30 → APPROVED_WITH_WARNINGS
         List<AiValidationIssue> issues = List.of(
                 issueWith(IssueSeverity.CRITICAL),
                 issueWith(IssueSeverity.CRITICAL),
                 issueWith(IssueSeverity.CRITICAL)
         );
         ValidationStatus status = calculator.calculateStatus(40, issues);
-        assertEquals(ValidationStatus.REJECTED, status);
+        assertEquals(ValidationStatus.APPROVED_WITH_WARNINGS, status,
+                "3 CRITICALs com score 40 deve ser APPROVED_WITH_WARNINGS");
     }
 
     @Test
-    void testRejectedWhenTooManyCritical() {
-        // score >= 60 but >= 3 critical issues
+    void testRejectedWhenScoreTooLowEvenWithFewCriticals() {
+        // Score 4 = acumulo grande de problemas; deve ser REJECTED mesmo com poucos CRITICALs
         List<AiValidationIssue> issues = List.of(
                 issueWith(IssueSeverity.CRITICAL),
                 issueWith(IssueSeverity.CRITICAL),
                 issueWith(IssueSeverity.CRITICAL)
         );
-        ValidationStatus status = calculator.calculateStatus(60, issues);
+        ValidationStatus status = calculator.calculateStatus(4, issues);
         assertEquals(ValidationStatus.REJECTED, status,
-                "Should be REJECTED when there are 3 or more critical issues even with score >= 60");
+                "Score 4 deve ser REJECTED independente do numero de CRITICALs");
+    }
+
+    @Test
+    void testRejectedWithFourCriticals() {
+        // 4+ CRITICALs = REJECTED independente do score
+        List<AiValidationIssue> issues = List.of(
+                issueWith(IssueSeverity.CRITICAL),
+                issueWith(IssueSeverity.CRITICAL),
+                issueWith(IssueSeverity.CRITICAL),
+                issueWith(IssueSeverity.CRITICAL)
+        );
+        ValidationStatus status = calculator.calculateStatus(0, issues);
+        assertEquals(ValidationStatus.REJECTED, status,
+                "4 or more CRITICALs should always be REJECTED");
     }
 
     @Test

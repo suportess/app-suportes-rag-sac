@@ -8,6 +8,7 @@ app/target/
 .env
 .env.app
 *.env
+app/src/main/resources/application-local.yml
 
 # IDE
 .idea/

@@ -35,7 +35,8 @@ public class ValidationController {
                 validationReportService.getQuestions(reportId),
                 validationReportService.parseStringList(report.getPositivePointsJson()),
                 validationReportService.parseStringList(report.getMissingSectionsJson()),
-                report.getRiskAnalysis()
+                report.getRiskAnalysis(),
+                validationReportService.parseSectionStatusList(report.getSectionAnalysisJson())
         );
     }
 }

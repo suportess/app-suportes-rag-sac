@@ -58,6 +58,9 @@ public class ValidationReportEntity {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String missingSectionsJson;
 
+    @Column(columnDefinition = "TEXT")
+    private String sectionAnalysisJson;
+
     @Column(nullable = false, columnDefinition = "TEXT")
     private String riskAnalysis;
 

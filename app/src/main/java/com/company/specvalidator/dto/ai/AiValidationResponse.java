@@ -1,5 +1,6 @@
 package com.company.specvalidator.dto.ai;
 
+import com.company.specvalidator.dto.response.SectionStatus;
 import com.company.specvalidator.enums.ValidationStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -28,4 +29,6 @@ public class AiValidationResponse {
     @Builder.Default
     private List<String> missingSections = new ArrayList<>();
     private String riskAnalysis;
+    @Builder.Default
+    private List<SectionStatus> sectionAnalysis = new ArrayList<>();
 }
