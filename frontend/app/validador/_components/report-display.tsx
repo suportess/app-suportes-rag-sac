@@ -14,7 +14,7 @@ import {
   ShieldAlert,
   ListChecks,
 } from 'lucide-react'
-import type { ValidationReportResponse, ValidationIssueResponse } from '@/lib/types'
+import type { ValidationReportResponse, ValidationIssueResponse, SectionStatus } from '@/lib/types'
 
 function scoreColor(score: number): string {
   if (score >= 85) return 'var(--clr-success)'
@@ -88,6 +88,28 @@ function severityOrder(severity: ValidationIssueResponse['severity']): number {
   }
 }
 
+function sectionStatusBadgeClass(status: SectionStatus['status']): string {
+  switch (status) {
+    case 'PRESENTE':
+      return 'badge-success'
+    case 'PARCIAL':
+      return 'badge-warning'
+    case 'AUSENTE':
+      return 'badge-danger'
+  }
+}
+
+function SectionStatusIcon({ status }: { status: SectionStatus['status'] }) {
+  switch (status) {
+    case 'PRESENTE':
+      return <CheckCircle size={16} style={{ color: 'var(--clr-success)', flexShrink: 0 }} />
+    case 'PARCIAL':
+      return <AlertTriangle size={16} style={{ color: 'var(--clr-warning)', flexShrink: 0 }} />
+    case 'AUSENTE':
+      return <XCircle size={16} style={{ color: 'var(--clr-danger)', flexShrink: 0 }} />
+  }
+}
+
 type ReportDisplayProps = {
   report: ValidationReportResponse
 }
@@ -145,6 +167,51 @@ export function ReportDisplay({ report }: ReportDisplayProps) {
           <div className="kpi-label">Perguntas</div>
         </div>
       </div>
+
+      {/* Section Coverage */}
+      {report.sectionAnalysis && report.sectionAnalysis.length > 0 && (
+        <div className="card card-p">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+            <ListChecks size={20} style={{ color: 'var(--clr-brand)' }} />
+            <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--text-primary)' }}>
+              Cobertura de Secoes EF
+            </h3>
+            <span style={{ marginLeft: 'auto', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+              {report.sectionAnalysis.filter(s => s.status === 'PRESENTE').length}/
+              {report.sectionAnalysis.length} presentes
+            </span>
+          </div>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+              gap: '0.5rem',
+            }}
+          >
+            {report.sectionAnalysis.map((section, i) => (
+              <div
+                key={i}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.6rem',
+                  padding: '0.5rem 0.75rem',
+                  borderRadius: '0.375rem',
+                  backgroundColor: 'var(--bg-muted)',
+                }}
+              >
+                <SectionStatusIcon status={section.status} />
+                <span style={{ flex: 1, fontSize: '0.875rem', color: 'var(--text-primary)' }}>
+                  {section.sectionName}
+                </span>
+                <span className={sectionStatusBadgeClass(section.status)} style={{ fontSize: '0.7rem' }}>
+                  {section.status}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Specification Summary */}
       {report.specificationSummary && (

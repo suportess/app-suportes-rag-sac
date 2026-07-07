@@ -1,6 +1,7 @@
 package com.company.specvalidator.service.validator;
 
 import com.company.specvalidator.dto.ai.AiValidationIssue;
+import com.company.specvalidator.dto.response.SectionStatus;
 import com.company.specvalidator.enums.IssueSeverity;
 import com.company.specvalidator.enums.ValidationStatus;
 import org.junit.jupiter.api.BeforeEach;
@@ -108,26 +109,26 @@ class ScoreCalculatorTest {
     }
 
     @Test
-    void testApprovedWithWarningsWithOneCritical() {
+    void testOneCriticalAlwaysRejected() {
         List<AiValidationIssue> issues = List.of(
                 issueWith(IssueSeverity.CRITICAL),
                 issueWith(IssueSeverity.MODERATE)
         );
         ValidationStatus status = calculator.calculateStatus(70, issues);
-        assertEquals(ValidationStatus.APPROVED_WITH_WARNINGS, status);
+        assertEquals(ValidationStatus.REJECTED, status,
+                "Qualquer CRITICAL deve resultar em REJECTED independente do score");
     }
 
     @Test
-    void testApprovedWithWarningsWithThreeCriticalsAndDecentScore() {
-        // 3 CRITICALs, sem mais nada: score = 100 - 60 = 40 >= 30 → APPROVED_WITH_WARNINGS
+    void testThreeCriticalsAlwaysRejected() {
         List<AiValidationIssue> issues = List.of(
                 issueWith(IssueSeverity.CRITICAL),
                 issueWith(IssueSeverity.CRITICAL),
                 issueWith(IssueSeverity.CRITICAL)
         );
         ValidationStatus status = calculator.calculateStatus(40, issues);
-        assertEquals(ValidationStatus.APPROVED_WITH_WARNINGS, status,
-                "3 CRITICALs com score 40 deve ser APPROVED_WITH_WARNINGS");
+        assertEquals(ValidationStatus.REJECTED, status,
+                "Qualquer CRITICAL deve resultar em REJECTED independente do score");
     }
 
     @Test
@@ -166,11 +167,85 @@ class ScoreCalculatorTest {
     }
 
     @Test
-    void testApprovedWithWarningsBoundary() {
-        // score = 85 but has 1 critical -> APPROVED_WITH_WARNINGS (score>=85 but criticalCount!=0)
+    void testOneCriticalWithHighScoreStillRejected() {
         List<AiValidationIssue> issues = List.of(issueWith(IssueSeverity.CRITICAL));
         ValidationStatus status = calculator.calculateStatus(85, issues);
+        assertEquals(ValidationStatus.REJECTED, status,
+                "Score 85 com 1 CRITICAL deve ser REJECTED — qualquer critical reprova");
+    }
+
+    @Test
+    void testApprovedWithWarningsRequiresZeroCriticals() {
+        // 0 criticals, score entre 30 e 84 → APPROVED_WITH_WARNINGS
+        List<AiValidationIssue> issues = List.of(
+                issueWith(IssueSeverity.MODERATE),
+                issueWith(IssueSeverity.MODERATE)
+        );
+        ValidationStatus status = calculator.calculateStatus(80, issues);
         assertEquals(ValidationStatus.APPROVED_WITH_WARNINGS, status,
-                "Score 85 with 1 critical should be APPROVED_WITH_WARNINGS, not APPROVED");
+                "0 criticals e score 80 deve ser APPROVED_WITH_WARNINGS");
+    }
+
+    // --- Testes de calculateSectionBonus ---
+
+    private SectionStatus sectionWith(String status) {
+        return SectionStatus.builder().sectionName("Seção").status(status).detectedHeading(null).build();
+    }
+
+    @Test
+    void testSectionBonusAllPresent() {
+        List<SectionStatus> sections = List.of(
+                sectionWith("PRESENTE"), sectionWith("PRESENTE"), sectionWith("PRESENTE"),
+                sectionWith("PRESENTE"), sectionWith("PRESENTE"), sectionWith("PRESENTE"),
+                sectionWith("PRESENTE"), sectionWith("PRESENTE"), sectionWith("PRESENTE"),
+                sectionWith("PRESENTE"), sectionWith("PRESENTE"), sectionWith("PRESENTE")
+        );
+        assertEquals(15, calculator.calculateSectionBonus(sections),
+                "12/12 PRESENTE deve dar bônus máximo de 15");
+    }
+
+    @Test
+    void testSectionBonusNonePresent() {
+        List<SectionStatus> sections = List.of(
+                sectionWith("AUSENTE"), sectionWith("AUSENTE"), sectionWith("AUSENTE")
+        );
+        assertEquals(0, calculator.calculateSectionBonus(sections),
+                "0 seções PRESENTE deve dar bônus zero");
+    }
+
+    @Test
+    void testSectionBonusHalfPresent() {
+        List<SectionStatus> sections = List.of(
+                sectionWith("PRESENTE"), sectionWith("PRESENTE"),
+                sectionWith("AUSENTE"), sectionWith("AUSENTE")
+        );
+        assertEquals(8, calculator.calculateSectionBonus(sections),
+                "4/4 com 2 presentes (50%) deve dar bônus ~7-8");
+    }
+
+    @Test
+    void testSectionBonusNullReturnsZero() {
+        assertEquals(0, calculator.calculateSectionBonus(null));
+    }
+
+    @Test
+    void testSectionBonusBoostsScoreToApproved() {
+        // SAP doc com 12/12 PRESENTE: rawScore=80 (2 MODERATE), bonus=15 → adjusted=95 → APPROVED
+        List<AiValidationIssue> issues = List.of(
+                issueWith(IssueSeverity.MODERATE),
+                issueWith(IssueSeverity.MODERATE)
+        );
+        List<SectionStatus> sections = List.of(
+                sectionWith("PRESENTE"), sectionWith("PRESENTE"), sectionWith("PRESENTE"),
+                sectionWith("PRESENTE"), sectionWith("PRESENTE"), sectionWith("PRESENTE"),
+                sectionWith("PRESENTE"), sectionWith("PRESENTE"), sectionWith("PRESENTE"),
+                sectionWith("PRESENTE"), sectionWith("PRESENTE"), sectionWith("PRESENTE")
+        );
+        int rawScore = calculator.calculateScore(issues); // 80
+        int bonus = calculator.calculateSectionBonus(sections); // 15
+        ValidationStatus status = calculator.calculateStatus(rawScore + bonus, issues); // 95 → APPROVED
+        assertEquals(ValidationStatus.APPROVED, status,
+                "12/12 seções presentes + 0 criticals deve resultar em APPROVED mesmo com warnings moderados");
     }
 }
+

@@ -4,11 +4,17 @@ app/target/
 *.jar
 *.war
 
+# Maven wrapper
+app/.mvn/wrapper/maven-wrapper.jar
+app/mvnw
+app/mvnw.cmd
+
 # Environment
 .env
 .env.app
 *.env
 app/src/main/resources/application-local.yml
+app/src/main/resources/application-dev.yml
 
 # IDE
 .idea/

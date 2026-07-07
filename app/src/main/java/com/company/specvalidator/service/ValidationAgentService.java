@@ -130,8 +130,10 @@ public class ValidationAgentService {
                 sectionAnalyzerService.analyze(extracted.getSections(), extracted.getRawText()));
 
         int rawScore = scoreCalculator.calculateScore(aiResponse.getIssues());
-        ValidationStatus status = scoreCalculator.calculateStatus(rawScore, aiResponse.getIssues());
-        int normalizedScore = scoreCalculator.normalizeScore(rawScore, status);
+        int sectionBonus = scoreCalculator.calculateSectionBonus(aiResponse.getSectionAnalysis());
+        int adjustedScore = rawScore + sectionBonus;
+        ValidationStatus status = scoreCalculator.calculateStatus(adjustedScore, aiResponse.getIssues());
+        int normalizedScore = scoreCalculator.normalizeScore(adjustedScore, status);
         aiResponse.setScore(normalizedScore);
         aiResponse.setStatus(status);
 

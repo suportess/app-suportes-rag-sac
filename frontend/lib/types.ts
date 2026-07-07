@@ -20,6 +20,12 @@ export type DocumentResponse = {
   updatedAt: string
 }
 
+export type SectionStatus = {
+  sectionName: string
+  status: 'PRESENTE' | 'PARCIAL' | 'AUSENTE'
+  detectedHeading?: string | null
+}
+
 export type ValidationReportResponse = {
   reportId: number
   documentId: number
@@ -33,6 +39,7 @@ export type ValidationReportResponse = {
   positivePoints: string[]
   missingSections: string[]
   riskAnalysis: string
+  sectionAnalysis: SectionStatus[]
 }
 
 export type ValidationIssueResponse = {

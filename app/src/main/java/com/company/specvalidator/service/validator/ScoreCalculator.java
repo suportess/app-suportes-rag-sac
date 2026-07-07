@@ -1,6 +1,7 @@
 package com.company.specvalidator.service.validator;
 
 import com.company.specvalidator.dto.ai.AiValidationIssue;
+import com.company.specvalidator.dto.response.SectionStatus;
 import com.company.specvalidator.enums.IssueSeverity;
 import com.company.specvalidator.enums.ValidationStatus;
 import org.springframework.stereotype.Component;
@@ -24,13 +25,26 @@ public class ScoreCalculator {
         return score; // sem floor — score pode ser negativo para EFs muito ruins
     }
 
-    public ValidationStatus calculateStatus(int rawScore, List<AiValidationIssue> issues) {
+    // Bônus de cobertura: até +15 pontos proporcionais às seções PRESENTE (12/12 = +15)
+    public int calculateSectionBonus(List<SectionStatus> sections) {
+        if (sections == null || sections.isEmpty()) return 0;
+        long presentCount = sections.stream()
+                .filter(s -> "PRESENTE".equals(s.getStatus()))
+                .count();
+        return (int) Math.round((double) presentCount / sections.size() * 15);
+    }
+
+    public ValidationStatus calculateStatus(int adjustedScore, List<AiValidationIssue> issues) {
         long criticalCount = issues.stream().filter(i -> i.getSeverity() == IssueSeverity.CRITICAL).count();
 
-        if (rawScore >= 85 && criticalCount == 0) {
+        // Qualquer CRITICAL = reprovado, independente do score
+        if (criticalCount > 0) {
+            return ValidationStatus.REJECTED;
+        }
+        if (adjustedScore >= 85) {
             return ValidationStatus.APPROVED;
         }
-        if (criticalCount <= 3 && rawScore >= 30) {
+        if (adjustedScore >= 30) {
             return ValidationStatus.APPROVED_WITH_WARNINGS;
         }
         return ValidationStatus.REJECTED;

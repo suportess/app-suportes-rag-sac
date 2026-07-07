@@ -109,9 +109,9 @@ export function ValidadorView() {
   return (
     <div className="page">
       <div className="page-header">
-        <h1 className="page-title">Validador de Especificacoes</h1>
+        <h1 className="page-title">Validador de Especificações Funcionais</h1>
         <p className="page-subtitle">
-          Envie sua especificacao SAP ABAP para validacao automatica por IA
+          Envie sua especificação SAP para validação automática por IA
         </p>
       </div>
 
@@ -212,7 +212,7 @@ export function ValidadorView() {
                 <span style={{ marginLeft: '0.5rem' }}>Validando...</span>
               </>
             ) : (
-              'Validar Especificacao'
+              'Validar Especificação'
             )}
           </button>
         </div>
