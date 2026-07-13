@@ -6,8 +6,13 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
 
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 @Component
 public class AiResponseParser {
+
+    private static final Pattern REASONING_CLOSING_MARKER = Pattern.compile("(?m)^\\s*\\]\\s*$");
 
     private final ObjectMapper objectMapper;
 
@@ -38,12 +43,21 @@ public class AiResponseParser {
             output = output.substring(0, output.length() - 3);
         }
         output = output.trim();
-        // Extract the JSON object from responses that include CoT reasoning before the JSON
-        int start = output.indexOf('{');
-        int end = output.lastIndexOf('}');
-        if (start != -1 && end != -1 && end > start) {
-            output = output.substring(start, end + 1);
-        }
+
+        output = stripReasoningBlock(output);
+
         return output.trim();
+    }
+
+    private String stripReasoningBlock(String output) {
+        int reasoningStart = output.indexOf("RACIOCINIO [");
+        if (reasoningStart == -1) {
+            return output;
+        }
+        Matcher closingMarker = REASONING_CLOSING_MARKER.matcher(output);
+        if (closingMarker.find(reasoningStart)) {
+            return output.substring(closingMarker.end());
+        }
+        return output;
     }
 }

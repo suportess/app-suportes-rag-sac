@@ -122,7 +122,14 @@ public class OpenAiProviderClient implements AiProviderClient {
             int inputTokens = root.path("usage").path("prompt_tokens").asInt(0);
             int outputTokens = root.path("usage").path("completion_tokens").asInt(0);
 
-            AiValidationResponse parsed = aiResponseParser.parse(content);
+            AiValidationResponse parsed;
+            try {
+                parsed = aiResponseParser.parse(content);
+            } catch (AiProviderException e) {
+                log.error("Falha ao parsear resposta da IA (documentId={}). Resposta bruta: {}",
+                        request.getDocumentId(), content);
+                throw e;
+            }
 
             langFuseClient.recordGenerationSuccess(generationId, content, inputTokens, outputTokens, Instant.now());
             log.info("Resposta recebida do provider IA com sucesso");

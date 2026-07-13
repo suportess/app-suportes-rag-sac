@@ -110,6 +110,36 @@ class AiResponseParserTest {
     }
 
     @Test
+    void testParseResponseWithReasoningBlockContainingStrayBraces() {
+        // Simula o cenario real de producao: o texto livre do bloco RACIOCINIO
+        // menciona uma estrutura com chaves, o que quebrava a extracao antiga
+        // baseada em indexOf('{')/lastIndexOf('}').
+        String response = """
+                RACIOCINIO [
+                Passo 9 (Tabelas): documento cita a estrutura ZTABELA { CAMPO1, CAMPO2 } sem detalhar -> MODERATE
+                Conclusao: 1 problema MODERATE -> status APPROVED_WITH_WARNINGS.
+                ]
+
+                """ + validJson();
+
+        AiValidationResponse parsedResponse = parser.parse(response);
+
+        assertNotNull(parsedResponse);
+        assertEquals(ValidationStatus.APPROVED, parsedResponse.getStatus());
+        assertEquals(85, parsedResponse.getScore());
+    }
+
+    @Test
+    void testParseResponseWithoutReasoningBlockStillWorks() {
+        // Quando a IA nao inclui o bloco RACIOCINIO (ex: mudanca futura de prompt),
+        // o parser deve continuar funcionando normalmente.
+        AiValidationResponse parsedResponse = parser.parse(validJson());
+
+        assertNotNull(parsedResponse);
+        assertEquals(ValidationStatus.APPROVED, parsedResponse.getStatus());
+    }
+
+    @Test
     void testParseResponseWithRejectedStatus() {
         String json = """
                 {
