@@ -37,6 +37,13 @@ public class AiResponseParser {
         if (output.endsWith("```")) {
             output = output.substring(0, output.length() - 3);
         }
+        output = output.trim();
+        // Extract the JSON object from responses that include CoT reasoning before the JSON
+        int start = output.indexOf('{');
+        int end = output.lastIndexOf('}');
+        if (start != -1 && end != -1 && end > start) {
+            output = output.substring(start, end + 1);
+        }
         return output.trim();
     }
 }

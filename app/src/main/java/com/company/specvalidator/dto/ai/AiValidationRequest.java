@@ -11,6 +11,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class AiValidationRequest {
     private Long documentId;
-    private String prompt;
-    private String normalizedText;
+    private String systemPrompt;
+    private String userPrompt;
+    private String traceId;
 }

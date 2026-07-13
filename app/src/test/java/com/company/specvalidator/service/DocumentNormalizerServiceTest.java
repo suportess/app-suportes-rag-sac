@@ -65,22 +65,6 @@ class DocumentNormalizerServiceTest {
     }
 
     @Test
-    void testDetectsSections() {
-        String input = "Objetivo\nDescrever a solucao para o cliente.\n\n" +
-                "Escopo\nImplementacao do modulo MM.\n\n" +
-                "Criterios de aceite\nTodos os testes devem passar.";
-
-        NormalizedDocument result = service.normalize(input);
-        assertNotNull(result.getSections());
-        assertTrue(result.getSections().containsKey("Objetivo"),
-                "Should detect 'Objetivo' section");
-        assertTrue(result.getSections().containsKey("Escopo"),
-                "Should detect 'Escopo' section");
-        assertTrue(result.getSections().containsKey("Criterios de aceite"),
-                "Should detect 'Criterios de aceite' section");
-    }
-
-    @Test
     void testHandlesNullInput() {
         // The normalize method does not check for null, so it should throw NPE
         assertThrows(NullPointerException.class, () -> service.normalize(null));
@@ -92,8 +76,6 @@ class DocumentNormalizerServiceTest {
         assertNotNull(result);
         assertEquals("", result.getRawText());
         assertTrue(result.getNormalizedText().isEmpty());
-        assertNotNull(result.getSections());
-        assertTrue(result.getSections().isEmpty());
     }
 
     @Test

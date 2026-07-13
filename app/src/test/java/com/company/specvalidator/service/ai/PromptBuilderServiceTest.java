@@ -18,15 +18,22 @@ class PromptBuilderServiceTest {
     // --- prompt structure ---
 
     @Test
-    void testPromptContainsDocumentText() {
+    void testUserPromptContainsDocumentText() {
         String documentText = "Minha especificacao funcional SAP ABAP para modulo MM.";
-        String prompt = service.buildValidationPrompt(documentText);
-        assertTrue(prompt.contains(documentText));
+        String userPrompt = service.buildUserPrompt(documentText);
+        assertTrue(userPrompt.contains(documentText));
+    }
+
+    @Test
+    void testSystemPromptDoesNotContainDocumentText() {
+        String documentText = "UNIQUE_DOCUMENT_MARKER_12345";
+        String systemPrompt = service.buildSystemPrompt(documentText);
+        assertFalse(systemPrompt.contains(documentText));
     }
 
     @Test
     void testPromptContainsJsonFormat() {
-        String prompt = service.buildValidationPrompt("qualquer texto");
+        String prompt = service.buildSystemPrompt("qualquer texto");
         assertTrue(prompt.contains("JSON"));
         assertTrue(prompt.contains("\"status\""));
         assertTrue(prompt.contains("\"score\""));
@@ -35,7 +42,7 @@ class PromptBuilderServiceTest {
 
     @Test
     void testPromptContainsSeverityLevels() {
-        String prompt = service.buildValidationPrompt("qualquer texto");
+        String prompt = service.buildSystemPrompt("qualquer texto");
         assertTrue(prompt.contains("CRITICAL"));
         assertTrue(prompt.contains("MODERATE"));
         assertTrue(prompt.contains("MINOR"));
@@ -43,35 +50,26 @@ class PromptBuilderServiceTest {
 
     @Test
     void testPromptContainsGeneralCriteria() {
-        String prompt = service.buildValidationPrompt("qualquer texto");
+        String prompt = service.buildSystemPrompt("qualquer texto");
         assertTrue(prompt.contains("objetivo"));
         assertTrue(prompt.contains("Regras de negocio"));
         assertTrue(prompt.contains("Cenarios de teste"));
         assertTrue(prompt.contains("Tabelas SAP"));
-        assertTrue(prompt.contains("Criterios de aceite"));
-    }
-
-    @Test
-    void testDocumentTextAppearsAtEnd() {
-        String documentText = "UNIQUE_DOCUMENT_MARKER_12345";
-        String prompt = service.buildValidationPrompt(documentText);
-        String afterDocText = prompt.substring(prompt.indexOf(documentText) + documentText.length()).trim();
-        assertTrue(afterDocText.isEmpty());
     }
 
     // --- new critical rules ---
 
     @Test
     void testPromptEnforcesTriggerAsModerate() {
-        String prompt = service.buildValidationPrompt("qualquer texto");
+        String prompt = service.buildSystemPrompt("qualquer texto");
         assertTrue(prompt.contains("TRIGGER"));
         // transacao nomeada (QM01, VA01) = trigger presente, nao cobrar
-        assertTrue(prompt.contains("trigger PRESENTE, NAO classificar como problema"));
+        assertTrue(prompt.contains("trigger esta PRESENTE, NAO classificar como problema"));
     }
 
     @Test
     void testPromptEnforcesBadiWithoutNameAsCritical() {
-        String prompt = service.buildValidationPrompt("qualquer texto");
+        String prompt = service.buildSystemPrompt("qualquer texto");
         // BAPI/BADI sem nome tecnico exato = CRITICAL
         assertTrue(prompt.contains("SEM nome tecnico exato"));
         assertTrue(prompt.contains("CRITICAL, categoria SAP_ABAP"));
@@ -79,23 +77,49 @@ class PromptBuilderServiceTest {
 
     @Test
     void testIntegrationWithoutTechnologyIsModerate() {
-        String prompt = service.buildValidationPrompt("qualquer texto");
+        String prompt = service.buildSystemPrompt("qualquer texto");
         // integracao sem tecnologia = MODERATE, nao CRITICAL
-        assertTrue(prompt.contains("mencionada sem tecnologia de comunicacao"));
+        assertTrue(prompt.contains("mencionada SEM tecnologia de comunicacao"));
         assertTrue(prompt.contains("= MODERATE"));
     }
 
     @Test
     void testPromptRequiresSecurityJustificationWhenNA() {
-        String prompt = service.buildValidationPrompt("qualquer texto");
+        String prompt = service.buildSystemPrompt("qualquer texto");
         assertTrue(prompt.contains("N/A"));
         assertTrue(prompt.contains("ARQUITETURA"));
     }
 
+    // --- chain-of-thought scratchpad ---
+
     @Test
-    void testCriteriosDeAceiteAreNotEvaluated() {
-        String prompt = service.buildValidationPrompt("qualquer texto");
-        assertTrue(prompt.contains("NAO cobrar"));
+    void testPromptContainsRaciocinioScratchpad() {
+        String prompt = service.buildSystemPrompt("qualquer texto");
+        // opening and closing markers of the CoT block
+        assertTrue(prompt.contains("RACIOCINIO ["));
+        assertTrue(prompt.contains("Conclusao:"));
+    }
+
+    @Test
+    void testPromptForbidsChainOfThoughtFieldInJson() {
+        String prompt = service.buildSystemPrompt("qualquer texto");
+        // the field name may appear only in the PROHIBITION instruction, never as a schema field
+        assertTrue(prompt.contains("PROIBIDO incluir o campo \"chainOfThought_Analysis\""));
+    }
+
+    @Test
+    void testPromptContainsHowToEvaluateInstructions() {
+        String prompt = service.buildSystemPrompt("qualquer texto");
+        // Bloco 2 must teach the LLM how to grade each criterion
+        assertTrue(prompt.contains("Como avaliar"));
+    }
+
+    @Test
+    void testPromptContainsAllThreeStatusExamples() {
+        String prompt = service.buildSystemPrompt("qualquer texto");
+        assertTrue(prompt.contains("REJECTED"));
+        assertTrue(prompt.contains("APPROVED_WITH_WARNINGS"));
+        assertTrue(prompt.contains("APPROVED"));
     }
 
     // --- development type detection ---
@@ -153,7 +177,7 @@ class PromptBuilderServiceTest {
 
     @Test
     void testReportPromptContainsAlvCriteria() {
-        String prompt = service.buildValidationPrompt("relatorio ALV para exibir dados de material");
+        String prompt = service.buildSystemPrompt("relatorio ALV para exibir dados de material");
         assertTrue(prompt.contains("REPORT/RELATORIO ALV"));
         assertTrue(prompt.contains("Variantes de selecao"));
         assertTrue(prompt.contains("Layout do ALV"));
@@ -161,14 +185,14 @@ class PromptBuilderServiceTest {
 
     @Test
     void testEnhancementPromptContainsExitCriteria() {
-        String prompt = service.buildValidationPrompt("implementar BADI para validacao de documento");
+        String prompt = service.buildSystemPrompt("implementar BADI para validacao de documento");
         assertTrue(prompt.contains("ENHANCEMENT/EXIT/BADI"));
         assertTrue(prompt.contains("Nome tecnico EXATO do ponto de enhancement"));
     }
 
     @Test
     void testInterfacePromptContainsLandscapeCriteria() {
-        String prompt = service.buildValidationPrompt("integracao RFC com sistema externo inbound");
+        String prompt = service.buildSystemPrompt("integracao RFC com sistema externo inbound");
         assertTrue(prompt.contains("INTERFACE/INTEGRACAO"));
         assertTrue(prompt.contains("Landscape completo"));
         assertTrue(prompt.contains("Procedimento de recuperacao"));
@@ -176,7 +200,7 @@ class PromptBuilderServiceTest {
 
     @Test
     void testUnknownTypeHasNoCriterioEspecifico() {
-        String prompt = service.buildValidationPrompt("documento sem tipo identificavel");
+        String prompt = service.buildSystemPrompt("documento sem tipo identificavel");
         assertFalse(prompt.contains("CRITERIOS ESPECIFICOS"));
     }
 }

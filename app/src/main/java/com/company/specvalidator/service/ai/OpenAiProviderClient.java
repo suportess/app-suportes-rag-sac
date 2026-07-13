@@ -19,9 +19,11 @@ import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Slf4j
 @Component
@@ -33,14 +35,17 @@ public class OpenAiProviderClient implements AiProviderClient {
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
     private final AiResponseParser aiResponseParser;
+    private final LangFuseClient langFuseClient;
 
     public OpenAiProviderClient(OpenAiConfig.AiProperties aiProperties,
                                 RestTemplateBuilder restTemplateBuilder,
                                 ObjectMapper objectMapper,
-                                AiResponseParser aiResponseParser) {
+                                AiResponseParser aiResponseParser,
+                                LangFuseClient langFuseClient) {
         this.aiProperties = aiProperties;
         this.objectMapper = objectMapper;
         this.aiResponseParser = aiResponseParser;
+        this.langFuseClient = langFuseClient;
         this.restTemplate = restTemplateBuilder
                 .setConnectTimeout(Duration.ofSeconds(aiProperties.getOpenai().getTimeoutSeconds()))
                 .setReadTimeout(Duration.ofSeconds(aiProperties.getOpenai().getTimeoutSeconds()))
@@ -55,12 +60,13 @@ public class OpenAiProviderClient implements AiProviderClient {
         }
 
         int maxRetries = aiProperties.getOpenai().getMaxRetries();
+        String traceId = request.getTraceId();
         AiProviderException lastException = null;
 
         for (int attempt = 1; attempt <= maxRetries; attempt++) {
             try {
                 log.info("Chamando provider IA (tentativa {}/{}), modelo: {}", attempt, maxRetries, aiProperties.getOpenai().getModel());
-                return doCall(apiKey, request);
+                return doCall(apiKey, request, traceId);
             } catch (AiProviderException e) {
                 lastException = e;
                 if (!isRetryable(e) || attempt == maxRetries) {
@@ -75,18 +81,28 @@ public class OpenAiProviderClient implements AiProviderClient {
         throw lastException;
     }
 
-    private AiValidationResponse doCall(String apiKey, AiValidationRequest request) {
+    private AiValidationResponse doCall(String apiKey, AiValidationRequest request, String traceId) {
+        String model = aiProperties.getOpenai().getModel();
+        double temperature = aiProperties.getOpenai().getTemperature();
+
+        List<Map<String, Object>> messages = List.of(
+                Map.of("role", "system", "content", request.getSystemPrompt()),
+                Map.of("role", "user", "content", request.getUserPrompt())
+        );
+
+        String generationId = UUID.randomUUID().toString();
+        Instant startTime = Instant.now();
+
+        langFuseClient.recordGenerationStart(traceId, generationId, messages, model, temperature, startTime);
+
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(apiKey);
         headers.setContentType(MediaType.APPLICATION_JSON);
 
         Map<String, Object> body = new HashMap<>();
-        body.put("model", aiProperties.getOpenai().getModel());
-        body.put("temperature", aiProperties.getOpenai().getTemperature());
-        body.put("messages", List.of(
-                Map.of("role", "system", "content", "Voce e um revisor tecnico SAP ABAP e deve responder apenas em JSON valido, sem markdown."),
-                Map.of("role", "user", "content", request.getPrompt())
-        ));
+        body.put("model", model);
+        body.put("temperature", temperature);
+        body.put("messages", messages);
 
         try {
             ResponseEntity<String> response = restTemplate.exchange(
@@ -102,17 +118,29 @@ public class OpenAiProviderClient implements AiProviderClient {
                 throw new AiProviderException("Resposta da IA veio vazia");
             }
 
+            String content = contentNode.asText();
+            int inputTokens = root.path("usage").path("prompt_tokens").asInt(0);
+            int outputTokens = root.path("usage").path("completion_tokens").asInt(0);
+
+            AiValidationResponse parsed = aiResponseParser.parse(content);
+
+            langFuseClient.recordGenerationSuccess(generationId, content, inputTokens, outputTokens, Instant.now());
             log.info("Resposta recebida do provider IA com sucesso");
-            return aiResponseParser.parse(contentNode.asText());
+            return parsed;
         } catch (ResourceAccessException e) {
+            langFuseClient.recordGenerationError(generationId, e.getMessage(), Instant.now());
             throw new AiProviderException("Timeout ao chamar provider de IA", e);
         } catch (HttpClientErrorException.TooManyRequests e) {
+            langFuseClient.recordGenerationError(generationId, e.getMessage(), Instant.now());
             throw new AiProviderException("Rate limit do provider de IA atingido. Tente novamente em alguns minutos.", e);
         } catch (HttpClientErrorException e) {
+            langFuseClient.recordGenerationError(generationId, e.getMessage(), Instant.now());
             throw new AiProviderException("Falha ao chamar provider de IA: " + e.getStatusCode(), e);
         } catch (AiProviderException e) {
+            langFuseClient.recordGenerationError(generationId, e.getMessage(), Instant.now());
             throw e;
         } catch (Exception e) {
+            langFuseClient.recordGenerationError(generationId, e.getMessage(), Instant.now());
             throw new AiProviderException("Erro inesperado na integracao com IA", e);
         }
     }

@@ -5,8 +5,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.Map;
-
 @Data
 @Builder
 @NoArgsConstructor
@@ -14,5 +12,4 @@ import java.util.Map;
 public class NormalizedDocument {
     private String rawText;
     private String normalizedText;
-    private Map<String, String> sections;
 }
