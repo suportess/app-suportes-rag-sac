@@ -88,15 +88,14 @@ public class DocumentController {
     }
 
     private ValidationReportResponse toReportResponse(ValidationReportEntity report) {
-        var issues = validationReportService.getIssues(report.getId());
-        var questions = validationReportService.getQuestions(report.getId());
+        var checklist = validationReportService.getChecklist(report.getId());
+        var pontosCriticos = validationReportService.getPontosCriticos(report.getId());
         return validationReportMapper.toResponse(
                 report,
-                issues,
-                questions,
-                validationReportService.parseStringList(report.getPositivePointsJson()),
-                validationReportService.parseStringList(report.getMissingSectionsJson()),
-                report.getRiskAnalysis(),
+                checklist,
+                pontosCriticos,
+                validationReportService.parseStringList(report.getPrincipaisRiscosJson()),
+                validationReportService.parseStringList(report.getRecomendacoesJson()),
                 validationReportService.parseSectionStatusList(report.getSectionAnalysisJson())
         );
     }

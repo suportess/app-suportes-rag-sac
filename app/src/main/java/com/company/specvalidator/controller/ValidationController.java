@@ -31,11 +31,10 @@ public class ValidationController {
         ValidationReportEntity report = validationReportService.getReport(reportId);
         return validationReportMapper.toResponse(
                 report,
-                validationReportService.getIssues(reportId),
-                validationReportService.getQuestions(reportId),
-                validationReportService.parseStringList(report.getPositivePointsJson()),
-                validationReportService.parseStringList(report.getMissingSectionsJson()),
-                report.getRiskAnalysis(),
+                validationReportService.getChecklist(reportId),
+                validationReportService.getPontosCriticos(reportId),
+                validationReportService.parseStringList(report.getPrincipaisRiscosJson()),
+                validationReportService.parseStringList(report.getRecomendacoesJson()),
                 validationReportService.parseSectionStatusList(report.getSectionAnalysisJson())
         );
     }

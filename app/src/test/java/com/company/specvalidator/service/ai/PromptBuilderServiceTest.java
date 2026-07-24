@@ -35,59 +35,49 @@ class PromptBuilderServiceTest {
     void testPromptContainsJsonFormat() {
         String prompt = service.buildSystemPrompt("qualquer texto");
         assertTrue(prompt.contains("JSON"));
-        assertTrue(prompt.contains("\"status\""));
-        assertTrue(prompt.contains("\"score\""));
-        assertTrue(prompt.contains("\"issues\""));
+        assertTrue(prompt.contains("\"qualidade\""));
+        assertTrue(prompt.contains("\"checklist\""));
+        assertTrue(prompt.contains("\"chave\""));
+        assertTrue(prompt.contains("\"pontosCriticos\""));
+        assertTrue(prompt.contains("\"recomendacoes\""));
+        assertTrue(prompt.contains("\"parecerFinal\""));
     }
 
     @Test
-    void testPromptContainsSeverityLevels() {
+    void testPromptDoesNotAskAiForScoreOrClassificacaoFields() {
+        // score/classificacao sao calculados pelo backend a partir do checklist, nao pela IA
         String prompt = service.buildSystemPrompt("qualquer texto");
-        assertTrue(prompt.contains("CRITICAL"));
-        assertTrue(prompt.contains("MODERATE"));
-        assertTrue(prompt.contains("MINOR"));
+        assertTrue(prompt.contains("NAO inclua os campos \"score\" nem \"classificacao\""));
+    }
+
+    @Test
+    void testPromptContainsChecklistStatusValues() {
+        String prompt = service.buildSystemPrompt("qualquer texto");
+        assertTrue(prompt.contains("OK = a EF esta completa, clara e implementavel"));
+        assertTrue(prompt.contains("Ausente = informacoes totalmente inexistentes"));
     }
 
     @Test
     void testPromptContainsGeneralCriteria() {
         String prompt = service.buildSystemPrompt("qualquer texto");
-        assertTrue(prompt.contains("objetivo"));
+        assertTrue(prompt.contains("Objetivo e escopo"));
         assertTrue(prompt.contains("Regras de negocio"));
-        assertTrue(prompt.contains("Cenarios de teste"));
-        assertTrue(prompt.contains("Tabelas SAP"));
-    }
-
-    // --- new critical rules ---
-
-    @Test
-    void testPromptEnforcesTriggerAsModerate() {
-        String prompt = service.buildSystemPrompt("qualquer texto");
-        assertTrue(prompt.contains("TRIGGER"));
-        // transacao nomeada (QM01, VA01) = trigger presente, nao cobrar
-        assertTrue(prompt.contains("trigger esta PRESENTE, NAO classificar como problema"));
+        assertTrue(prompt.contains("Condicoes de teste"));
+        assertTrue(prompt.contains("tabelas SAP"));
     }
 
     @Test
-    void testPromptEnforcesBadiWithoutNameAsCritical() {
+    void testPromptContainsAll16ChecklistKeys() {
         String prompt = service.buildSystemPrompt("qualquer texto");
-        // BAPI/BADI sem nome tecnico exato = CRITICAL
-        assertTrue(prompt.contains("SEM nome tecnico exato"));
-        assertTrue(prompt.contains("CRITICAL, categoria SAP_ABAP"));
-    }
-
-    @Test
-    void testIntegrationWithoutTechnologyIsModerate() {
-        String prompt = service.buildSystemPrompt("qualquer texto");
-        // integracao sem tecnologia = MODERATE, nao CRITICAL
-        assertTrue(prompt.contains("mencionada SEM tecnologia de comunicacao"));
-        assertTrue(prompt.contains("= MODERATE"));
-    }
-
-    @Test
-    void testPromptRequiresSecurityJustificationWhenNA() {
-        String prompt = service.buildSystemPrompt("qualquer texto");
-        assertTrue(prompt.contains("N/A"));
-        assertTrue(prompt.contains("ARQUITETURA"));
+        String[] chaves = {
+                "descricao_processo", "objetivo_escopo", "casos_uso", "fluxos_alternativos",
+                "regras_negocio", "tratamento_excecoes", "inputs_outputs", "campos_estrutura_dados",
+                "dependencias", "controle_acesso", "volume_frequencia", "logs_reprocessamento",
+                "mensagens_validacoes", "condicoes_teste", "massa_dados", "consistencia"
+        };
+        for (String chave : chaves) {
+            assertTrue(prompt.contains(chave), "Prompt deveria conter a chave: " + chave);
+        }
     }
 
     // --- chain-of-thought scratchpad ---
@@ -108,18 +98,21 @@ class PromptBuilderServiceTest {
     }
 
     @Test
-    void testPromptContainsHowToEvaluateInstructions() {
+    void testPromptContainsMandatoryRules() {
         String prompt = service.buildSystemPrompt("qualquer texto");
-        // Bloco 2 must teach the LLM how to grade each criterion
-        assertTrue(prompt.contains("Como avaliar"));
+        assertTrue(prompt.contains("NAO ASSUMIR INFORMACOES E DADOS"));
+        assertTrue(prompt.contains("NAO SEJA GENERICO"));
+        assertTrue(prompt.contains("FOCO NA EXECUTABILIDADE"));
+        assertTrue(prompt.contains("CLASSIFICACAO RIGIDA"));
+        assertTrue(prompt.contains("DETECÇAO DE RISCO"));
     }
 
     @Test
-    void testPromptContainsAllThreeStatusExamples() {
+    void testPromptContainsExpectedBehaviorSection() {
         String prompt = service.buildSystemPrompt("qualquer texto");
-        assertTrue(prompt.contains("REJECTED"));
-        assertTrue(prompt.contains("APPROVED_WITH_WARNINGS"));
-        assertTrue(prompt.contains("APPROVED"));
+        assertTrue(prompt.contains("Seja direto"));
+        assertTrue(prompt.contains("Seja critico"));
+        assertTrue(prompt.contains("Nao suavize os problemas encontrados"));
     }
 
     // --- development type detection ---
@@ -167,6 +160,18 @@ class PromptBuilderServiceTest {
     }
 
     @Test
+    void testDetectsArquivoType() {
+        assertEquals(ARQUIVO, service.detectDevType("arquivo plano com layout de arquivo definido via ftp"));
+        assertEquals(ARQUIVO, service.detectDevType("arquivo texto com separador de colunas e estrutura de arquivo"));
+    }
+
+    @Test
+    void testDetectsTelaFioriType() {
+        assertEquals(TELA_FIORI, service.detectDevType("aplicativo fiori com tile no launchpad"));
+        assertEquals(TELA_FIORI, service.detectDevType("desenvolvimento em sapui5 para nova tela customizada"));
+    }
+
+    @Test
     void testReturnsUnknownWhenNoSignificantKeywords() {
         assertEquals(UNKNOWN, service.detectDevType("documento generico sem palavras chave especificas"));
         assertEquals(UNKNOWN, service.detectDevType(""));
@@ -176,26 +181,33 @@ class PromptBuilderServiceTest {
     // --- type-specific criteria in prompt ---
 
     @Test
-    void testReportPromptContainsAlvCriteria() {
+    void testReportPromptContainsSpecificCriteria() {
         String prompt = service.buildSystemPrompt("relatorio ALV para exibir dados de material");
-        assertTrue(prompt.contains("REPORT/RELATORIO ALV"));
+        assertTrue(prompt.contains("CRITERIOS ESPECIFICOS: REPORT"));
         assertTrue(prompt.contains("Variantes de selecao"));
-        assertTrue(prompt.contains("Layout do ALV"));
+        assertTrue(prompt.contains("Colunas do relatorio"));
     }
 
     @Test
     void testEnhancementPromptContainsExitCriteria() {
         String prompt = service.buildSystemPrompt("implementar BADI para validacao de documento");
-        assertTrue(prompt.contains("ENHANCEMENT/EXIT/BADI"));
+        assertTrue(prompt.contains("CRITERIOS ESPECIFICOS: ENHANCEMENT"));
         assertTrue(prompt.contains("Nome tecnico EXATO do ponto de enhancement"));
     }
 
     @Test
-    void testInterfacePromptContainsLandscapeCriteria() {
+    void testInterfacePromptContainsWricefCriteria() {
         String prompt = service.buildSystemPrompt("integracao RFC com sistema externo inbound");
-        assertTrue(prompt.contains("INTERFACE/INTEGRACAO"));
-        assertTrue(prompt.contains("Landscape completo"));
-        assertTrue(prompt.contains("Procedimento de recuperacao"));
+        assertTrue(prompt.contains("CRITERIOS ESPECIFICOS: INTERFACE / PI-CPI"));
+        assertTrue(prompt.contains("Direcao definida (inbound/outbound)"));
+        assertTrue(prompt.contains("Senders/receivers"));
+    }
+
+    @Test
+    void testArquivoPromptContainsWricefCriteria() {
+        String prompt = service.buildSystemPrompt("arquivo plano via ftp com layout de arquivo definido");
+        assertTrue(prompt.contains("CRITERIOS ESPECIFICOS: ARQUIVO"));
+        assertTrue(prompt.contains("Exemplo de arquivo fornecido"));
     }
 
     @Test

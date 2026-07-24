@@ -1,68 +1,56 @@
 package com.company.specvalidator.service.validator;
 
-import com.company.specvalidator.dto.ai.AiValidationIssue;
-import com.company.specvalidator.dto.response.SectionStatus;
-import com.company.specvalidator.enums.IssueSeverity;
+import com.company.specvalidator.dto.ai.ChecklistItem;
+import com.company.specvalidator.enums.ChecklistItemKey;
+import com.company.specvalidator.enums.ChecklistStatus;
 import com.company.specvalidator.enums.ValidationStatus;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Set;
 
 @Component
 public class ScoreCalculator {
 
-    public int calculateScore(List<AiValidationIssue> issues) {
+    // Itens cuja ausencia impede o inicio do desenvolvimento (conforme modelo do Marcio:
+    // regras de negocio, exceções, inputs/outputs, dependencias, teste). O texto original dele
+    // citava um 6o item ("erro") sem nome literal entre os 16 criterios — como nao ha
+    // confirmacao de qual criterio isso seria, optamos por nao incluir nenhum item por suposicao;
+    // mensagens_validacoes fica no -6 padrao (AUSENTE nao-critico) ate confirmacao com o Marcio.
+    private static final Set<ChecklistItemKey> ITENS_CRITICOS = Set.of(
+            ChecklistItemKey.REGRAS_NEGOCIO,
+            ChecklistItemKey.TRATAMENTO_EXCECOES,
+            ChecklistItemKey.INPUTS_OUTPUTS,
+            ChecklistItemKey.DEPENDENCIAS,
+            ChecklistItemKey.CONDICOES_TESTE
+    );
+
+    public int calculatePontos(ChecklistItem item) {
+        if (item.getStatus() == ChecklistStatus.OK) {
+            return 0;
+        }
+        if (item.getStatus() == ChecklistStatus.PARCIAL) {
+            return -4;
+        }
+        // AUSENTE
+        return ITENS_CRITICOS.contains(item.getChave()) ? -10 : -6;
+    }
+
+    public int calculateScore(List<ChecklistItem> checklist) {
         int score = 100;
-        for (AiValidationIssue issue : issues) {
-            if (issue.getSeverity() == IssueSeverity.CRITICAL) {
-                score -= 20;
-            } else if (issue.getSeverity() == IssueSeverity.MODERATE) {
-                score -= 10;
-            } else if (issue.getSeverity() == IssueSeverity.MINOR) {
-                score -= 3;
-            }
+        for (ChecklistItem item : checklist) {
+            score += calculatePontos(item);
         }
-        return score; // sem floor — score pode ser negativo para EFs muito ruins
+        return score; // sem piso — checklist com muitos gaps pode ficar negativo
     }
 
-    // Bônus de cobertura: até +15 pontos proporcionais às seções PRESENTE (12/12 = +15)
-    public int calculateSectionBonus(List<SectionStatus> sections) {
-        if (sections == null || sections.isEmpty()) return 0;
-        long presentCount = sections.stream()
-                .filter(s -> "PRESENTE".equals(s.getStatus()))
-                .count();
-        return (int) Math.round((double) presentCount / sections.size() * 15);
-    }
-
-    public ValidationStatus calculateStatus(int adjustedScore, List<AiValidationIssue> issues) {
-        long criticalCount = issues.stream().filter(i -> i.getSeverity() == IssueSeverity.CRITICAL).count();
-
-        // Qualquer CRITICAL = reprovado, independente do score
-        if (criticalCount > 0) {
-            return ValidationStatus.REJECTED;
+    public ValidationStatus calculateClassificacao(int score) {
+        if (score <= 39) {
+            return ValidationStatus.REPROVADO;
         }
-        if (adjustedScore >= 85) {
-            return ValidationStatus.APPROVED;
+        if (score <= 60) {
+            return ValidationStatus.ACEITAVEL;
         }
-        if (adjustedScore >= 30) {
-            return ValidationStatus.APPROVED_WITH_WARNINGS;
-        }
-        return ValidationStatus.REJECTED;
-    }
-
-    public int normalizeScore(int rawScore, ValidationStatus status) {
-        return switch (status) {
-            case APPROVED -> rawScore;
-            case APPROVED_WITH_WARNINGS -> Math.max(30, Math.min(84, rawScore));
-            case REJECTED -> {
-                // Mapeia lineamente [-100, 29] → [1, 29]
-                // EF com poucas falhas rejeitadas (raw 29) → exibe 29
-                // EF muito ruim (raw ≤ -100) → exibe 1
-                int worstCase = -100;
-                int bestRejected = 29;
-                int clamped = Math.max(worstCase, Math.min(bestRejected, rawScore));
-                yield 1 + (int) Math.round((double)(clamped - worstCase) / (bestRejected - worstCase) * 28);
-            }
-        };
+        return ValidationStatus.APROVADO;
     }
 }

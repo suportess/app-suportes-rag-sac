@@ -1,6 +1,7 @@
 package com.company.specvalidator.entity;
 
-import com.company.specvalidator.enums.TargetAudience;
+import com.company.specvalidator.enums.ChecklistItemKey;
+import com.company.specvalidator.enums.ChecklistStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -22,8 +23,8 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "validation_questions")
-public class ValidationQuestionEntity {
+@Table(name = "checklist_items")
+public class ChecklistItemEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -33,13 +34,20 @@ public class ValidationQuestionEntity {
     @JoinColumn(name = "report_id", nullable = false)
     private ValidationReportEntity report;
 
-    @Column(nullable = false, columnDefinition = "TEXT")
-    private String question;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private ChecklistItemKey chave;
 
-    @Column(nullable = false, columnDefinition = "TEXT")
-    private String reason;
+    @Column(nullable = false)
+    private String item;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private TargetAudience targetAudience;
+    private ChecklistStatus status;
+
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String comentario;
+
+    @Column(nullable = false)
+    private Integer pontos;
 }

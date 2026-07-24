@@ -15,20 +15,20 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class AiValidationResponse {
-    private ValidationStatus status;
-    private Integer score;
+    private String qualidade;
+    private String resumoExecutivo;
+    @Builder.Default
+    private List<String> principaisRiscos = new ArrayList<>();
     private String specificationSummary;
-    private String summary;
-    private String finalRecommendation;
     @Builder.Default
-    private List<AiValidationIssue> issues = new ArrayList<>();
+    private List<ChecklistItem> checklist = new ArrayList<>();
     @Builder.Default
-    private List<AiValidationQuestion> questions = new ArrayList<>();
+    private List<PontoCritico> pontosCriticos = new ArrayList<>();
     @Builder.Default
-    private List<String> positivePoints = new ArrayList<>();
-    @Builder.Default
-    private List<String> missingSections = new ArrayList<>();
-    private String riskAnalysis;
+    private List<String> recomendacoes = new ArrayList<>();
+    private String parecerFinal;
+    private Integer score;
+    private ValidationStatus classificacao;
     @Builder.Default
     private List<SectionStatus> sectionAnalysis = new ArrayList<>();
 }

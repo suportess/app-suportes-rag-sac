@@ -19,7 +19,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.file.Files;
-import java.util.ArrayList;
 import java.util.Map;
 import java.util.UUID;
 
@@ -141,20 +140,17 @@ public class ValidationAgentService {
         aiResponse.setSectionAnalysis(sectionAnalysis);
 
         String scoringSpanId = langFuseClient.startSpan(traceId, null, "scoring",
-                Map.of("issuesCount", aiResponse.getIssues().size()));
-        int rawScore = scoreCalculator.calculateScore(aiResponse.getIssues());
-        int sectionBonus = scoreCalculator.calculateSectionBonus(aiResponse.getSectionAnalysis());
-        int adjustedScore = rawScore + sectionBonus;
-        ValidationStatus status = scoreCalculator.calculateStatus(adjustedScore, aiResponse.getIssues());
-        int normalizedScore = scoreCalculator.normalizeScore(adjustedScore, status);
-        aiResponse.setScore(normalizedScore);
-        aiResponse.setStatus(status);
+                Map.of("checklistCount", aiResponse.getChecklist().size()));
+        aiResponse.getChecklist().forEach(item -> item.setPontos(scoreCalculator.calculatePontos(item)));
+        int score = scoreCalculator.calculateScore(aiResponse.getChecklist());
+        ValidationStatus classificacao = scoreCalculator.calculateClassificacao(score);
+        aiResponse.setScore(score);
+        aiResponse.setClassificacao(classificacao);
         langFuseClient.endSpan(scoringSpanId,
-                Map.of("rawScore", rawScore, "sectionBonus", sectionBonus,
-                        "normalizedScore", normalizedScore, "status", status.toString()),
+                Map.of("score", score, "classificacao", classificacao.toString()),
                 null);
 
-        log.info("Score raw: {}, normalizado: {}, status: {}", rawScore, normalizedScore, status);
+        log.info("Score: {}, classificacao: {}", score, classificacao);
 
         ValidationReportEntity report = validationReportService.saveReport(document, aiResponse);
 

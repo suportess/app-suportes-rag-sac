@@ -38,7 +38,7 @@ public class ValidationReportEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private ValidationStatus status;
+    private ValidationStatus classificacao;
 
     @Column(nullable = false)
     private Integer score;
@@ -46,32 +46,23 @@ public class ValidationReportEntity {
     @Column(columnDefinition = "TEXT")
     private String specificationSummary;
 
-    @Column(nullable = false, columnDefinition = "TEXT")
-    private String summary;
+    @Column(columnDefinition = "TEXT")
+    private String qualidade;
 
-    @Column(nullable = false, columnDefinition = "TEXT")
-    private String finalRecommendation;
+    @Column(columnDefinition = "TEXT")
+    private String resumoExecutivo;
 
-    @Column(nullable = false, columnDefinition = "TEXT")
-    private String positivePointsJson;
+    @Column(columnDefinition = "TEXT")
+    private String principaisRiscosJson;
 
-    @Column(nullable = false, columnDefinition = "TEXT")
-    private String missingSectionsJson;
+    @Column(columnDefinition = "TEXT")
+    private String recomendacoesJson;
+
+    @Column(columnDefinition = "TEXT")
+    private String parecerFinal;
 
     @Column(columnDefinition = "TEXT")
     private String sectionAnalysisJson;
-
-    @Column(nullable = false, columnDefinition = "TEXT")
-    private String riskAnalysis;
-
-    @Column(nullable = false)
-    private Integer criticalIssuesCount;
-
-    @Column(nullable = false)
-    private Integer moderateIssuesCount;
-
-    @Column(nullable = false)
-    private Integer minorIssuesCount;
 
     @Column(nullable = false)
     private LocalDateTime createdAt;

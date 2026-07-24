@@ -1,10 +1,7 @@
 package com.company.specvalidator.entity;
 
-import com.company.specvalidator.enums.IssueSeverity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -22,8 +19,8 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "validation_issues")
-public class ValidationIssueEntity {
+@Table(name = "pontos_criticos")
+public class PontoCriticoEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -33,19 +30,9 @@ public class ValidationIssueEntity {
     @JoinColumn(name = "report_id", nullable = false)
     private ValidationReportEntity report;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private IssueSeverity severity;
-
-    @Column(nullable = false)
-    private String category;
-
-    @Column(nullable = false)
-    private String title;
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String gap;
 
     @Column(nullable = false, columnDefinition = "TEXT")
-    private String description;
-
-    @Column(nullable = false, columnDefinition = "TEXT")
-    private String suggestion;
+    private String impacto;
 }

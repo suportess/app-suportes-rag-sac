@@ -15,15 +15,15 @@ import java.util.List;
 public class ValidationReportResponse {
     private Long reportId;
     private Long documentId;
-    private ValidationStatus status;
-    private Integer score;
+    private String qualidade;
+    private String resumoExecutivo;
+    private List<String> principaisRiscos;
     private String specificationSummary;
-    private String summary;
-    private String finalRecommendation;
-    private List<ValidationIssueResponse> issues;
-    private List<ValidationQuestionResponse> questions;
-    private List<String> positivePoints;
-    private List<String> missingSections;
-    private String riskAnalysis;
+    private List<ChecklistItemResponse> checklist;
+    private List<PontoCriticoResponse> pontosCriticos;
+    private List<String> recomendacoes;
+    private String parecerFinal;
+    private Integer score;
+    private ValidationStatus classificacao;
     private List<SectionStatus> sectionAnalysis;
 }

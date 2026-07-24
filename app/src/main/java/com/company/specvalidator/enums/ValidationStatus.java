@@ -1,7 +1,10 @@
 package com.company.specvalidator.enums;
 
+import com.fasterxml.jackson.annotation.JsonEnumDefaultValue;
+
 public enum ValidationStatus {
-    APPROVED,
-    APPROVED_WITH_WARNINGS,
-    REJECTED
+    APROVADO,
+    ACEITAVEL,
+    @JsonEnumDefaultValue
+    REPROVADO
 }

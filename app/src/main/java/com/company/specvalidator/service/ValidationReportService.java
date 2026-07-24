@@ -1,16 +1,15 @@
 package com.company.specvalidator.service;
 
-import com.company.specvalidator.dto.ai.AiValidationIssue;
-import com.company.specvalidator.dto.ai.AiValidationQuestion;
 import com.company.specvalidator.dto.ai.AiValidationResponse;
+import com.company.specvalidator.dto.ai.ChecklistItem;
+import com.company.specvalidator.dto.ai.PontoCritico;
+import com.company.specvalidator.entity.ChecklistItemEntity;
 import com.company.specvalidator.entity.DocumentEntity;
-import com.company.specvalidator.entity.ValidationIssueEntity;
-import com.company.specvalidator.entity.ValidationQuestionEntity;
+import com.company.specvalidator.entity.PontoCriticoEntity;
 import com.company.specvalidator.entity.ValidationReportEntity;
-import com.company.specvalidator.enums.IssueSeverity;
 import com.company.specvalidator.exception.ResourceValidationException;
-import com.company.specvalidator.repository.ValidationIssueRepository;
-import com.company.specvalidator.repository.ValidationQuestionRepository;
+import com.company.specvalidator.repository.ChecklistItemRepository;
+import com.company.specvalidator.repository.PontoCriticoRepository;
 import com.company.specvalidator.repository.ValidationReportRepository;
 import com.company.specvalidator.dto.response.SectionStatus;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -24,53 +23,46 @@ import java.util.List;
 public class ValidationReportService {
 
     private final ValidationReportRepository validationReportRepository;
-    private final ValidationIssueRepository validationIssueRepository;
-    private final ValidationQuestionRepository validationQuestionRepository;
+    private final ChecklistItemRepository checklistItemRepository;
+    private final PontoCriticoRepository pontoCriticoRepository;
     private final ObjectMapper objectMapper;
 
     public ValidationReportService(ValidationReportRepository validationReportRepository,
-                                   ValidationIssueRepository validationIssueRepository,
-                                   ValidationQuestionRepository validationQuestionRepository,
+                                   ChecklistItemRepository checklistItemRepository,
+                                   PontoCriticoRepository pontoCriticoRepository,
                                    ObjectMapper objectMapper) {
         this.validationReportRepository = validationReportRepository;
-        this.validationIssueRepository = validationIssueRepository;
-        this.validationQuestionRepository = validationQuestionRepository;
+        this.checklistItemRepository = checklistItemRepository;
+        this.pontoCriticoRepository = pontoCriticoRepository;
         this.objectMapper = objectMapper;
     }
 
     @Transactional
     public ValidationReportEntity saveReport(DocumentEntity document, AiValidationResponse response) {
-        int critical = (int) response.getIssues().stream().filter(i -> i.getSeverity() == IssueSeverity.CRITICAL).count();
-        int moderate = (int) response.getIssues().stream().filter(i -> i.getSeverity() == IssueSeverity.MODERATE).count();
-        int minor = (int) response.getIssues().stream().filter(i -> i.getSeverity() == IssueSeverity.MINOR).count();
-
         ValidationReportEntity report = ValidationReportEntity.builder()
                 .document(document)
-                .status(response.getStatus())
+                .classificacao(response.getClassificacao())
                 .score(response.getScore())
                 .specificationSummary(response.getSpecificationSummary())
-                .summary(response.getSummary())
-                .finalRecommendation(response.getFinalRecommendation())
-            .positivePointsJson(toJson(response.getPositivePoints()))
-            .missingSectionsJson(toJson(response.getMissingSections()))
-            .sectionAnalysisJson(toJsonObject(response.getSectionAnalysis()))
-            .riskAnalysis(response.getRiskAnalysis() == null ? "" : response.getRiskAnalysis())
-                .criticalIssuesCount(critical)
-                .moderateIssuesCount(moderate)
-                .minorIssuesCount(minor)
+                .qualidade(response.getQualidade())
+                .resumoExecutivo(response.getResumoExecutivo())
+                .principaisRiscosJson(toJson(response.getPrincipaisRiscos()))
+                .recomendacoesJson(toJson(response.getRecomendacoes()))
+                .parecerFinal(response.getParecerFinal())
+                .sectionAnalysisJson(toJsonObject(response.getSectionAnalysis()))
                 .build();
 
         ValidationReportEntity saved = validationReportRepository.save(report);
 
-        List<ValidationIssueEntity> issueEntities = response.getIssues().stream()
-                .map(issue -> toIssueEntity(saved, issue))
+        List<ChecklistItemEntity> checklistEntities = response.getChecklist().stream()
+                .map(item -> toChecklistItemEntity(saved, item))
                 .toList();
-        validationIssueRepository.saveAll(issueEntities);
+        checklistItemRepository.saveAll(checklistEntities);
 
-        List<ValidationQuestionEntity> questionEntities = response.getQuestions().stream()
-                .map(question -> toQuestionEntity(saved, question))
+        List<PontoCriticoEntity> pontoCriticoEntities = response.getPontosCriticos().stream()
+                .map(ponto -> toPontoCriticoEntity(saved, ponto))
                 .toList();
-        validationQuestionRepository.saveAll(questionEntities);
+        pontoCriticoRepository.saveAll(pontoCriticoEntities);
 
         return saved;
     }
@@ -80,36 +72,36 @@ public class ValidationReportService {
                 .orElseThrow(() -> new ResourceValidationException("Relatorio nao encontrado"));
     }
 
-    public List<ValidationIssueEntity> getIssues(Long reportId) {
-        return validationIssueRepository.findByReportId(reportId);
+    public List<ChecklistItemEntity> getChecklist(Long reportId) {
+        return checklistItemRepository.findByReportId(reportId);
     }
 
-    public List<ValidationQuestionEntity> getQuestions(Long reportId) {
-        return validationQuestionRepository.findByReportId(reportId);
+    public List<PontoCriticoEntity> getPontosCriticos(Long reportId) {
+        return pontoCriticoRepository.findByReportId(reportId);
     }
 
-    private ValidationIssueEntity toIssueEntity(ValidationReportEntity report, AiValidationIssue issue) {
-        return ValidationIssueEntity.builder()
+    private ChecklistItemEntity toChecklistItemEntity(ValidationReportEntity report, ChecklistItem item) {
+        return ChecklistItemEntity.builder()
                 .report(report)
-                .severity(issue.getSeverity())
-                .category(issue.getCategory())
-                .title(issue.getTitle())
-                .description(issue.getDescription())
-                .suggestion(issue.getSuggestion())
+                .chave(item.getChave())
+                .item(item.getItem())
+                .status(item.getStatus())
+                .comentario(item.getComentario())
+                .pontos(item.getPontos())
                 .build();
     }
 
-    private ValidationQuestionEntity toQuestionEntity(ValidationReportEntity report, AiValidationQuestion question) {
-        return ValidationQuestionEntity.builder()
+    private PontoCriticoEntity toPontoCriticoEntity(ValidationReportEntity report, PontoCritico ponto) {
+        return PontoCriticoEntity.builder()
                 .report(report)
-                .question(question.getQuestion())
-                .reason(question.getReason())
-                .targetAudience(question.getTargetAudience())
+                .gap(ponto.getGap())
+                .impacto(ponto.getImpacto())
                 .build();
     }
 
     public List<String> parseStringList(String json) {
         try {
+            if (json == null || json.isBlank()) return List.of();
             return objectMapper.readValue(json, new TypeReference<>() {
             });
         } catch (Exception e) {

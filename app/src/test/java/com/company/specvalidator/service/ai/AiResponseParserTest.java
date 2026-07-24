@@ -1,7 +1,7 @@
 package com.company.specvalidator.service.ai;
 
 import com.company.specvalidator.dto.ai.AiValidationResponse;
-import com.company.specvalidator.enums.ValidationStatus;
+import com.company.specvalidator.enums.ChecklistStatus;
 import com.company.specvalidator.exception.AiProviderException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,34 +21,32 @@ class AiResponseParserTest {
     private String validJson() {
         return """
                 {
-                  "status": "APPROVED",
-                  "score": 85,
-                  "summary": "Documento bem elaborado",
-                  "finalRecommendation": "Aprovado para desenvolvimento",
-                  "issues": [
+                  "qualidade": "Alta",
+                  "resumoExecutivo": "Documento bem elaborado, pronto para desenvolvimento",
+                  "principaisRiscos": ["Volumetria nao informada"],
+                  "specificationSummary": "EF descreve um relatorio ALV de ordens de producao",
+                  "checklist": [
                     {
-                      "severity": "MINOR",
-                      "category": "ESTRUTURA",
-                      "title": "Secao de escopo incompleta",
-                      "description": "A secao de escopo poderia ser mais detalhada",
-                      "suggestion": "Detalhar melhor o escopo"
+                      "chave": "regras_negocio",
+                      "item": "Regras de negocio",
+                      "status": "OK",
+                      "comentario": "Regras descritas com SE/ENTAO claros"
+                    },
+                    {
+                      "chave": "condicoes_teste",
+                      "item": "Condicoes de teste",
+                      "status": "Parcial",
+                      "comentario": "Apenas o caminho feliz foi descrito"
                     }
                   ],
-                  "questions": [
+                  "pontosCriticos": [
                     {
-                      "question": "Qual a volumetria esperada?",
-                      "reason": "Para dimensionar performance",
-                      "targetAudience": "FUNCIONAL"
+                      "gap": "Cenarios de erro nao cobertos",
+                      "impacto": "Risco de falha de teste em producao"
                     }
                   ],
-                  "positivePoints": [
-                    "Objetivo claro",
-                    "Tabelas SAP bem referenciadas"
-                  ],
-                  "missingSections": [
-                    "Perfis e autorizacoes"
-                  ],
-                  "riskAnalysis": "Risco baixo para implementacao"
+                  "recomendacoes": ["Detalhar cenarios de teste de excecao"],
+                  "parecerFinal": "Aprovado com ressalvas, ajustar cenarios de teste antes do QA"
                 }
                 """;
     }
@@ -58,16 +56,24 @@ class AiResponseParserTest {
         AiValidationResponse response = parser.parse(validJson());
 
         assertNotNull(response);
-        assertEquals(ValidationStatus.APPROVED, response.getStatus());
-        assertEquals(85, response.getScore());
-        assertEquals("Documento bem elaborado", response.getSummary());
-        assertEquals("Aprovado para desenvolvimento", response.getFinalRecommendation());
-        assertEquals(1, response.getIssues().size());
-        assertEquals("Secao de escopo incompleta", response.getIssues().get(0).getTitle());
-        assertEquals(1, response.getQuestions().size());
-        assertEquals(2, response.getPositivePoints().size());
-        assertEquals(1, response.getMissingSections().size());
-        assertEquals("Risco baixo para implementacao", response.getRiskAnalysis());
+        assertEquals("Alta", response.getQualidade());
+        assertEquals("Documento bem elaborado, pronto para desenvolvimento", response.getResumoExecutivo());
+        assertEquals(1, response.getPrincipaisRiscos().size());
+        assertEquals("EF descreve um relatorio ALV de ordens de producao", response.getSpecificationSummary());
+        assertEquals(2, response.getChecklist().size());
+        assertEquals(ChecklistStatus.OK, response.getChecklist().get(0).getStatus());
+        assertEquals(1, response.getPontosCriticos().size());
+        assertEquals("Cenarios de erro nao cobertos", response.getPontosCriticos().get(0).getGap());
+        assertEquals(1, response.getRecomendacoes().size());
+        assertEquals("Aprovado com ressalvas, ajustar cenarios de teste antes do QA", response.getParecerFinal());
+    }
+
+    @Test
+    void testParseChecklistStatusIsCaseInsensitive() {
+        AiValidationResponse response = parser.parse(validJson());
+
+        // "Parcial" (grafia usada no prompt) deve mapear para PARCIAL, nao cair no default AUSENTE
+        assertEquals(ChecklistStatus.PARCIAL, response.getChecklist().get(1).getStatus());
     }
 
     @Test
@@ -76,8 +82,7 @@ class AiResponseParserTest {
         AiValidationResponse response = parser.parse(wrapped);
 
         assertNotNull(response);
-        assertEquals(ValidationStatus.APPROVED, response.getStatus());
-        assertEquals(85, response.getScore());
+        assertEquals("Alta", response.getQualidade());
     }
 
     @Test
@@ -86,7 +91,7 @@ class AiResponseParserTest {
         AiValidationResponse response = parser.parse(wrapped);
 
         assertNotNull(response);
-        assertEquals(ValidationStatus.APPROVED, response.getStatus());
+        assertEquals("Alta", response.getQualidade());
     }
 
     @Test
@@ -116,8 +121,8 @@ class AiResponseParserTest {
         // baseada em indexOf('{')/lastIndexOf('}').
         String response = """
                 RACIOCINIO [
-                Passo 9 (Tabelas): documento cita a estrutura ZTABELA { CAMPO1, CAMPO2 } sem detalhar -> MODERATE
-                Conclusao: 1 problema MODERATE -> status APPROVED_WITH_WARNINGS.
+                Passo 9 (Estrutura de dados): documento cita a estrutura ZTABELA { CAMPO1, CAMPO2 } sem detalhar -> Parcial
+                Conclusao: 1 gap relevante -> qualidade Media.
                 ]
 
                 """ + validJson();
@@ -125,8 +130,7 @@ class AiResponseParserTest {
         AiValidationResponse parsedResponse = parser.parse(response);
 
         assertNotNull(parsedResponse);
-        assertEquals(ValidationStatus.APPROVED, parsedResponse.getStatus());
-        assertEquals(85, parsedResponse.getScore());
+        assertEquals("Alta", parsedResponse.getQualidade());
     }
 
     @Test
@@ -136,27 +140,26 @@ class AiResponseParserTest {
         AiValidationResponse parsedResponse = parser.parse(validJson());
 
         assertNotNull(parsedResponse);
-        assertEquals(ValidationStatus.APPROVED, parsedResponse.getStatus());
+        assertEquals("Alta", parsedResponse.getQualidade());
     }
 
     @Test
-    void testParseResponseWithRejectedStatus() {
+    void testParseResponseWithLowQuality() {
         String json = """
                 {
-                  "status": "REJECTED",
-                  "score": 30,
-                  "summary": "Documento insuficiente",
-                  "finalRecommendation": "Reescrever a especificacao",
-                  "issues": [],
-                  "questions": [],
-                  "positivePoints": [],
-                  "missingSections": ["Objetivo", "Escopo"],
-                  "riskAnalysis": "Risco alto"
+                  "qualidade": "Baixa",
+                  "resumoExecutivo": "Documento insuficiente",
+                  "principaisRiscos": ["Objetivo ausente", "Escopo ausente"],
+                  "specificationSummary": "",
+                  "checklist": [],
+                  "pontosCriticos": [],
+                  "recomendacoes": [],
+                  "parecerFinal": "Reescrever a especificacao"
                 }
                 """;
         AiValidationResponse response = parser.parse(json);
-        assertEquals(ValidationStatus.REJECTED, response.getStatus());
-        assertEquals(30, response.getScore());
-        assertEquals(2, response.getMissingSections().size());
+        assertEquals("Baixa", response.getQualidade());
+        assertEquals(2, response.getPrincipaisRiscos().size());
+        assertEquals("Reescrever a especificacao", response.getParecerFinal());
     }
 }
