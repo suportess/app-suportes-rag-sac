@@ -19,9 +19,18 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.company.specvalidator.dto.ai.ChecklistItem;
+import com.company.specvalidator.enums.ChecklistItemKey;
+import com.company.specvalidator.enums.ChecklistStatus;
+
 import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -143,13 +152,37 @@ public class ValidationAgentService {
 
         aiResponse.setSectionAnalysis(sectionAnalysis);
 
-        String scoringSpanId = langFuseClient.startSpan(traceId, null, "scoring",
-                Map.of("checklistCount", aiResponse.getChecklist().size(), "devType", devType.toString()));
-        aiResponse.getChecklist().forEach(item -> {
+        // Marca itens retornados pela IA como aplicáveis e calcula métricas
+        List<ChecklistItem> checklist = new ArrayList<>(aiResponse.getChecklist());
+        checklist.forEach(item -> {
+            item.setAplicavel(true);
             item.setPontos(scoreCalculator.calculatePontosPerdidos(item));
             item.setPeso(scoreCalculator.pesoDe(item.getChave()));
             item.setPontosConquistados(scoreCalculator.pontosConquistados(item));
         });
+
+        // Completa com os critérios não enviados ao prompt (não aplicáveis ao DevType detectado)
+        Set<ChecklistItemKey> retornados = checklist.stream()
+                .map(ChecklistItem::getChave).collect(Collectors.toSet());
+        Arrays.stream(ChecklistItemKey.values())
+                .filter(chave -> !retornados.contains(chave))
+                .forEach(chave -> {
+                    int peso = scoreCalculator.pesoDe(chave);
+                    checklist.add(ChecklistItem.builder()
+                            .chave(chave)
+                            .item(chave.name())
+                            .status(ChecklistStatus.AUSENTE)
+                            .comentario("Não aplicável para este tipo de desenvolvimento.")
+                            .aplicavel(false)
+                            .peso(peso)
+                            .pontosConquistados(0.0)
+                            .pontos(0)
+                            .build());
+                });
+        aiResponse.setChecklist(checklist);
+
+        String scoringSpanId = langFuseClient.startSpan(traceId, null, "scoring",
+                Map.of("checklistCount", checklist.size(), "devType", devType.toString()));
         int score = scoreCalculator.calculateScore(aiResponse.getChecklist(), devType);
         ValidationStatus classificacao = scoreCalculator.calculateClassificacao(score);
         aiResponse.setScore(score);

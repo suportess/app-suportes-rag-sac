@@ -19,4 +19,5 @@ public class ChecklistItem {
     private Integer pontos;
     private Integer peso;
     private Double pontosConquistados;
+    private boolean aplicavel;
 }

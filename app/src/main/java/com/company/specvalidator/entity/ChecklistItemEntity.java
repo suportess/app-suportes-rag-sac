@@ -56,4 +56,7 @@ public class ChecklistItemEntity {
 
     @Column(name = "pontos_conquistados", nullable = false)
     private Double pontosConquistados;
+
+    @Column(nullable = false)
+    private boolean aplicavel;
 }

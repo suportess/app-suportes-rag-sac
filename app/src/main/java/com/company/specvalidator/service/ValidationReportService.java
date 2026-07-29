@@ -90,6 +90,7 @@ public class ValidationReportService {
                 .pontos(item.getPontos())
                 .peso(item.getPeso())
                 .pontosConquistados(item.getPontosConquistados())
+                .aplicavel(item.isAplicavel())
                 .build();
     }
 
