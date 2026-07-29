@@ -50,4 +50,10 @@ public class ChecklistItemEntity {
 
     @Column(nullable = false)
     private Integer pontos;
+
+    @Column(nullable = false)
+    private Integer peso;
+
+    @Column(name = "pontos_conquistados", nullable = false)
+    private Double pontosConquistados;
 }

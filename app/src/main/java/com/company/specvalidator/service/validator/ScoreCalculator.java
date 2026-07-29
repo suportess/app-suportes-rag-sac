@@ -98,7 +98,11 @@ public class ScoreCalculator {
         return (int) Math.round(conquistado - peso);
     }
 
-    private double pontosConquistados(ChecklistItem item) {
+    /**
+     * Pontos conquistados (fracao exata, sem arredondar) por esse item — usado pro demonstrativo
+     * transparente na tela (ex: "1.5 de 3"), em vez do valor de perda ja arredondado.
+     */
+    public double pontosConquistados(ChecklistItem item) {
         int peso = pesoDe(item.getChave());
         return switch (item.getStatus()) {
             case OK -> peso;
@@ -107,7 +111,11 @@ public class ScoreCalculator {
         };
     }
 
-    private int pesoDe(ChecklistItemKey chave) {
+    /**
+     * Peso (1-5, definido pelo negocio) desse criterio — usado pro demonstrativo transparente
+     * na tela, pra mostrar "quanto valia" cada item alem do quanto foi conquistado.
+     */
+    public int pesoDe(ChecklistItemKey chave) {
         String jsonKey = chave.name().toLowerCase(Locale.ROOT);
         Integer peso = scoringProperties.getPesos().get(jsonKey);
         if (peso == null) {

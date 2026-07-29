@@ -195,4 +195,28 @@ class ScoreCalculatorTest {
         // peso 4 (objetivo_escopo), parcial ganha 2, perde 2
         assertEquals(-2, calculator.calculatePontosPerdidos(itemWith(ChecklistItemKey.OBJETIVO_ESCOPO, ChecklistStatus.PARCIAL)));
     }
+
+    // --- pesoDe e pontosConquistados (demonstrativo transparente: peso + fracao) ---
+
+    @Test
+    void testPesoDeReturnsConfiguredWeight() {
+        assertEquals(5, calculator.pesoDe(ChecklistItemKey.REGRAS_NEGOCIO));
+        assertEquals(3, calculator.pesoDe(ChecklistItemKey.DESCRICAO_PROCESSO));
+    }
+
+    @Test
+    void testPontosConquistadosOkIsFullWeight() {
+        assertEquals(5.0, calculator.pontosConquistados(itemWith(ChecklistItemKey.REGRAS_NEGOCIO, ChecklistStatus.OK)));
+    }
+
+    @Test
+    void testPontosConquistadosParcialIsHalfWeight() {
+        // peso 3 (descricao_processo), parcial = 50% = 1.5
+        assertEquals(1.5, calculator.pontosConquistados(itemWith(ChecklistItemKey.DESCRICAO_PROCESSO, ChecklistStatus.PARCIAL)));
+    }
+
+    @Test
+    void testPontosConquistadosAusenteIsZero() {
+        assertEquals(0.0, calculator.pontosConquistados(itemWith(ChecklistItemKey.MASSA_DADOS, ChecklistStatus.AUSENTE)));
+    }
 }

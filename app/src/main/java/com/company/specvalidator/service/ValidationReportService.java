@@ -88,6 +88,8 @@ public class ValidationReportService {
                 .status(item.getStatus())
                 .comentario(item.getComentario())
                 .pontos(item.getPontos())
+                .peso(item.getPeso())
+                .pontosConquistados(item.getPontosConquistados())
                 .build();
     }
 

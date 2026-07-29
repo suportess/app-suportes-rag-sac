@@ -46,6 +46,8 @@ public class ValidationReportMapper {
                 .status(entity.getStatus())
                 .comentario(entity.getComentario())
                 .pontos(entity.getPontos())
+                .peso(entity.getPeso())
+                .pontosConquistados(entity.getPontosConquistados())
                 .build();
     }
 

@@ -145,7 +145,11 @@ public class ValidationAgentService {
 
         String scoringSpanId = langFuseClient.startSpan(traceId, null, "scoring",
                 Map.of("checklistCount", aiResponse.getChecklist().size(), "devType", devType.toString()));
-        aiResponse.getChecklist().forEach(item -> item.setPontos(scoreCalculator.calculatePontosPerdidos(item)));
+        aiResponse.getChecklist().forEach(item -> {
+            item.setPontos(scoreCalculator.calculatePontosPerdidos(item));
+            item.setPeso(scoreCalculator.pesoDe(item.getChave()));
+            item.setPontosConquistados(scoreCalculator.pontosConquistados(item));
+        });
         int score = scoreCalculator.calculateScore(aiResponse.getChecklist(), devType);
         ValidationStatus classificacao = scoreCalculator.calculateClassificacao(score);
         aiResponse.setScore(score);

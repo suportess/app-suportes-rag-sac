@@ -17,4 +17,6 @@ public class ChecklistItemResponse {
     private ChecklistStatus status;
     private String comentario;
     private Integer pontos;
+    private Integer peso;
+    private Double pontosConquistados;
 }
