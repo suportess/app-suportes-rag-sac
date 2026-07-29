@@ -1,38 +1,60 @@
 package com.company.specvalidator.service.ai;
 
+import com.company.specvalidator.enums.ChecklistItemKey;
+import com.company.specvalidator.enums.DevType;
 import org.springframework.stereotype.Service;
 
+import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 @Service
 public class PromptBuilderService {
 
-    enum DevType {
-        REPORT("Report/Relatorio ALV"),
-        ENHANCEMENT("Enhancement/Exit/BADI"),
-        INTERFACE("Interface/PI-CPI"),
-        WORKFLOW("Workflow/Fluxo de Aprovacao"),
-        FORMS("Formulario (SmartForm/SapScript/Adobe Forms)"),
-        BATCH("Conversao/Batch Input/BDC"),
-        TABLE("Tabela ou Estrutura ABAP Customizada"),
-        ARQUIVO("Arquivo (Importacao/Exportacao de Arquivo Plano)"),
-        TELA_FIORI("Tela Customizada/Aplicativo Fiori"),
-        UNKNOWN("Tipo nao identificado - aplicando criterios gerais");
+    // Criterios "obrigatorios" (definidos pelo negocio em 2026-07-27/28): sempre entram no
+    // prompt, independente do tipo de desenvolvimento identificado. Mesma lista usada pelo
+    // ScoreCalculator pra decidir o que conta no score — se mudar aqui, mudar la tambem.
+    private static final Set<ChecklistItemKey> ITENS_OBRIGATORIOS = EnumSet.of(
+            ChecklistItemKey.DESCRICAO_PROCESSO,
+            ChecklistItemKey.OBJETIVO_ESCOPO,
+            ChecklistItemKey.CASOS_USO,
+            ChecklistItemKey.FLUXOS_ALTERNATIVOS,
+            ChecklistItemKey.REGRAS_NEGOCIO,
+            ChecklistItemKey.TRATAMENTO_EXCECOES,
+            ChecklistItemKey.INPUTS_OUTPUTS,
+            ChecklistItemKey.CONDICOES_TESTE,
+            ChecklistItemKey.MASSA_DADOS
+    );
 
-        private final String displayName;
+    // Criterios "condicionais": so entram no prompt quando o DevType detectado bate com um dos
+    // tipos habilitados. Mesmo mapa usado pelo ScoreCalculator.
+    private static final Map<ChecklistItemKey, Set<DevType>> APLICABILIDADE_CONDICIONAIS = Map.of(
+            ChecklistItemKey.CAMPOS_ESTRUTURA_DADOS, EnumSet.of(DevType.TABLE),
+            ChecklistItemKey.DEPENDENCIAS, EnumSet.of(DevType.REPORT, DevType.INTERFACE, DevType.BATCH),
+            ChecklistItemKey.CONTROLE_ACESSO, EnumSet.allOf(DevType.class),
+            ChecklistItemKey.VOLUME_FREQUENCIA, EnumSet.of(DevType.REPORT, DevType.INTERFACE, DevType.BATCH, DevType.FORMS),
+            ChecklistItemKey.LOGS_REPROCESSAMENTO, EnumSet.allOf(DevType.class),
+            ChecklistItemKey.MENSAGENS_VALIDACOES, EnumSet.allOf(DevType.class)
+    );
 
-        DevType(String displayName) {
-            this.displayName = displayName;
+    private boolean isApplicable(ChecklistItemKey chave, DevType devType) {
+        if (ITENS_OBRIGATORIOS.contains(chave)) {
+            return true;
         }
-
-        public String displayName() {
-            return displayName;
-        }
+        Set<DevType> tiposHabilitados = APLICABILIDADE_CONDICIONAIS.get(chave);
+        return tiposHabilitados != null && tiposHabilitados.contains(devType);
     }
 
     public String buildSystemPrompt(String documentText) {
         DevType devType = detectDevType(documentText);
+        return buildSystemPrompt(documentText, devType);
+    }
+
+    public String buildSystemPrompt(String documentText, DevType devType) {
         String typeSpecificCriteria = buildTypeSpecificCriteria(devType);
+        String criteriosValidacao = buildCriteriosValidacao(devType);
 
         return """
                 <persona>
@@ -64,8 +86,12 @@ public class PromptBuilderService {
 
                 4. CLASSIFICACAO RIGIDA
                 A classificacao para os itens encontrados desse seguir dessa forma:
-                  - OK = a EF esta completa, clara e implementavel
-                  - Parcial = contem informacoes ambiguas, esta incompleto ou nao testavel
+                  - OK = a informacao esta presente e clara o suficiente para o desenvolvedor iniciar a implementacao,
+                    MESMO que existam detalhes adicionais que poderiam ser refinados depois — NAO exija perfeicao ou
+                    exaustao de detalhes para classificar como OK
+                  - Parcial = a informacao existe, mas e ambigua, contraditoria ou insuficiente a ponto de gerar duvida
+                    REAL sobre como implementar ou testar (nao classifique como Parcial só porque "poderia ter mais
+                    detalhe" quando o que ja esta escrito e suficiente para prosseguir)
                   - Ausente = informacoes totalmente inexistentes
 
                 5. DETECÇAO DE RISCO
@@ -76,81 +102,26 @@ public class PromptBuilderService {
                     - Integracao
                     - Produtizacao
                     A identificacao precose do impacto ira reduzir o retrabalho, entao seja preciso na idenficiacao desses
+
+                6. CONSISTENCIA (regra transversal, nao e mais um item pontuado do checklist)
+                  Em TODOS os itens do checklist, avalie tambem se o documento e coerente entre secoes: ausencia de
+                  ambiguidade, ausencia de conflito interno, clareza para implementacao e testabilidade. Se encontrar
+                  inconsistencia (ex: a EF usa nomes diferentes pro mesmo campo/tabela/transacao, ou uma secao
+                  contradiz outra), isso deve rebaixar a classificacao do(s) item(ns) afetado(s) pra Parcial ou
+                  Ausente — nao existe mais uma "nota de consistencia" separada, ela se reflete nos proprios itens.
                 </regras_obrigatorias>
 
                 <criterios_validacao>
-                Avalie TODOS os 16 itens abaixo. Para cada um deles, use a "chave" fixa indicada entre parenteses — ela sera
-                usada EXATAMENTE assim no JSON de saida, nunca traduza ou altere essa "chave":
+                Avalie TODOS os itens abaixo (a quantidade varia conforme o tipo de desenvolvimento identificado em
+                <contexto_dev>). Para cada um deles, use a "chave" fixa indicada entre parenteses — ela sera usada
+                EXATAMENTE assim no JSON de saida, nunca traduza ou altere essa "chave":
 
-                1. Descricao do processo (chave: descricao_processo)
-                  Como avaliar: verifique se a EF descreve o processo de negocio ponta a ponta: evento inicial, atores/areas envolvidas, etapas principais, decisao de negocio e resultado esperado. Parcial quando houver apenas uma frase generica sem sequencia operacional; Ausente quando nao houver contexto do processo.
-                  Exemplo: Processo de criacao de pedido de venda iniciado pela area comercial, validado por credito, faturado no SD e integrado ao financeiro apos emissao da nota.
-
-                2. Objetivo e escopo (chave: objetivo_escopo)
-                  Como avaliar: procure objetivo claro do desenvolvimento, fronteiras do que esta dentro e fora do escopo, modulo SAP impactado, transacoes/processos envolvidos e resultado funcional esperado. Parcial quando o objetivo existir, mas sem delimitacao; Ausente quando nao disser o que deve ser construido.
-                  Exemplo: Criar relatorio ALV no modulo MM para acompanhar pedidos de compra em aberto por centro e fornecedor; fora do escopo alteracao no processo de aprovacao.
-
-                3. Casos de uso principais (chave: casos_uso)
-                  Como avaliar: identifique os cenarios principais de uso, quem executa, em qual transacao/tela/job, quais entradas utiliza e qual saida ou acao esperada. Parcial quando cita usuarios ou funcionalidades sem fluxo de uso; Ausente quando nao houver cenarios executaveis.
-                  Exemplo: Comprador acessa a transacao ZMM_PED_ABERTO, informa centro e periodo, executa a consulta e exporta a lista de pedidos pendentes para Excel.
-
-                4. Fluxos alternativos (chave: fluxos_alternativos)
-                  Como avaliar: busque comportamento para excecoes funcionais e tecnicas: retorno sem dados, dados invalidos, timeout, duplicidade, cancelamento, rejeicao, indisponibilidade de sistema ou falha de integracao. Parcial quando houver somente mencao generica a erro; Ausente quando apenas o fluxo feliz estiver descrito.
-                  Exemplo: Se nao houver pedidos para o filtro informado, exibir mensagem informativa; se a RFC do sistema externo falhar, registrar erro e permitir reprocessamento.
-
-                5. Regras de negocio (chave: regras_negocio)
-                  Como avaliar: procure regras objetivas no formato condicao/acao, formulas, criterios de selecao, validacoes, excecoes e prioridades. Parcial quando as regras forem textuais, ambiguas ou sem parametros; Ausente quando nao houver decisao de negocio documentada.
-                  Exemplo: SE o pedido estiver bloqueado por credito, ENTAO nao enviar para faturamento; SE o valor for maior que R$ 50.000, exigir aprovacao do gerente regional.
-
-                6. Tratamento de excecoes (chave: tratamento_excecoes)
-                  Como avaliar: verifique se a EF define como tratar erros funcionais, erros tecnicos, falhas de gravacao, indisponibilidade de dependencia, registros rejeitados e retomada do processamento. Parcial quando listar erros sem acao esperada; Ausente quando nao houver tratamento definido.
-                  Exemplo: Para material inexistente, rejeitar o registro, gravar mensagem no log com MATNR e linha do arquivo, continuar os demais registros e disponibilizar relatorio de rejeicoes.
-                
-                7. Inputs e outputs (chave: inputs_outputs)
-                  Como avaliar: confirme se entradas e saidas estao nomeadas, com origem/destino, obrigatoriedade, formato, meio de execucao e exemplos. Parcial quando houver apenas descricao funcional sem estrutura; Ausente quando nao for possivel saber o que entra e o que sai.
-                  Exemplo: Entrada: arquivo CSV recebido via SFTP com fornecedor, material e quantidade. Saida: ordem de compra criada no SAP e arquivo de retorno com status por linha.
-
-                8. Campos e estrutura de dados — origem, tipo, tamanho, formato, dominio/range, obrigatoriedade (chave: campos_estrutura_dados)
-                   Como avaliar: procure lista de campos com nome funcional e tecnico, tabela/estrutura de origem, tipo SAP, tamanho, formato, dominio/range, obrigatoriedade, regra de preenchimento e exemplo de valor. Parcial quando houver campos sem metadados; Ausente quando citar dados de forma generica.
-                   Exemplo: MATNR - origem MARA-MATNR, CHAR 18, obrigatorio, sem zeros a esquerda na entrada; BUDAT - DATS 8, formato AAAAMMDD, obrigatorio.
-
-                9. Dependencias — integracoes, tabelas SAP, programas predecessores, servicos, arquivos, sistemas externos (chave: dependencias)
-                  Como avaliar: verifique nomes tecnicos de tabelas, BAPIs, BADIs, RFCs, APIs, jobs, programas, transacoes, filas, topicos, arquivos, diretorios e sistemas externos. Parcial quando dependencias forem citadas sem nome tecnico; Ausente quando nao houver mapa de dependencias.
-                  Exemplo: Ler VBAK/VBAP, chamar BAPI_SALESORDER_CHANGE, consumir API REST do CRM, receber arquivo em /interfaces/in/pedidos e executar apos job ZSD_ATUALIZA_STATUS.
-
-                10. Controle de acesso / autorizacoes (chave: controle_acesso)
-                  Como avaliar: busque perfis, papeis, objetos de autorizacao, transacoes liberadas, segregacao por area/empresa, restricoes de dados e comportamento quando o usuario nao tiver permissao. Parcial quando mencionar apenas "acesso restrito"; Ausente quando nao tratar autorizacao.
-                  Exemplo: Usuarios com papel ZMM_COMPRADOR podem executar ZMM_PED_ABERTO; validar objeto M_BEST_WRK por centro e bloquear visualizacao de centros nao autorizados.
-
-                11. Volume de dados e frequencia de execucao (chave: volume_frequencia)
-                  Como avaliar: procure numeros concretos de volume e frequencia: registros por execucao, execucoes por hora/dia/mes, tamanho maximo de lote, janela de processamento, crescimento esperado e tempo limite aceitavel. Parcial quando houver apenas "alto volume" ou "diario" sem quantidade; Ausente quando nao houver dados para dimensionar performance.
-                  Exemplo: Execucao online via Fiori processando cerca de 50 registros por clique; ou job background diario as 23h processando ate 100.000 registros mensais em janela maxima de 2 horas.
-                
-                12. Logs, rastreabilidade e reprocessamento/recuperacao (chave: logs_reprocessamento)
-                  Como avaliar: verifique se define onde registrar logs, quais campos rastrear, nivel de detalhe, identificador de correlacao, consulta operacional, retencao, reprocessamento e recuperacao em falha. Parcial quando houver log sem reprocessamento ou sem dados rastreaveis; Ausente quando nao houver estrategia operacional.
-                  Exemplo: Gravar Application Log SLG1 objeto ZPEDIDOS com ID do lote, usuario, data/hora, status por item e opcao de reprocessar apenas registros com erro.
-                
-                13. Mensagens e validacoes (chave: mensagens_validacoes)
-                  Como avaliar: procure validacoes de campos, regras de obrigatoriedade, dominios permitidos, mensagens de erro/sucesso/alerta, codigo ou texto da mensagem e momento de exibicao. Parcial quando validacoes existirem sem mensagem clara; Ausente quando nao houver validacoes documentadas.
-                  Exemplo: Validar que centro e obrigatorio; se vazio, exibir "Centro deve ser informado". Validar fornecedor ativo; se bloqueado, retornar mensagem de erro com codigo ZMM001.
-                
-                14. Condicoes de teste (chave: condicoes_teste)
-                  Como avaliar: identifique cenarios de teste positivos, negativos, alternativos, integrados, volumetria/performance, criterios de aceite e resultado esperado por cenario. Parcial quando houver lista incompleta sem resultado esperado; Ausente quando nao houver testes.
-                  Exemplo: Teste 1: criar pedido valido e verificar status sucesso. Teste 2: fornecedor bloqueado deve rejeitar item. Teste 3: arquivo com 10.000 linhas deve processar dentro da janela acordada.
-                
-                15. Massa de dados (chave: massa_dados)
-                  Como avaliar: verifique se a EF informa dados de teste necessarios, origem da massa, quantidade minima, combinacoes obrigatorias, usuarios/perfis, dados mestres, dados transacionais e preparacao do ambiente. Parcial quando citar massa generica sem identificadores ou quantidade; Ausente quando nao houver dados para executar os testes.
-                  Exemplo: Usar fornecedor 10001234 ativo, material MAT-001 estendido para centro 1100, pedido 4500001234 em aberto e arquivo de teste com 50 registros validos e 10 invalidos.
-                
-                16. Consistencia — ausencia de ambiguidade, ausencia de conflito interno, clareza para implementacao, testabilidade (chave: consistencia)
-                  Como avaliar: avalie se o documento e coerente entre secoes, sem termos vagos, decisoes contraditorias, lacunas que bloqueiam desenho tecnico e requisitos impossiveis de testar. Parcial quando houver ambiguidades controlaveis; Ausente quando a EF for incoerente ou nao permitir implementacao/teste confiavel.
-                  Exemplo: A EF usa o mesmo nome de tabela, campo e transacao em todo o documento, nao mistura inbound com outbound para a mesma interface e cada regra possui criterio verificavel.
-                      
+                %s
                 </criterios_validacao>
 
                 <validacao_adicional_por_tipo_wricef>
                 Se o tipo do objeto for identificado, faca a validao dos criterios especificos abaixo (Esses criterios especificos sao um complemento,
-                nao substituicao dos 16 itens de <criterios_validacao>):
+                nao substituicao dos itens de <criterios_validacao>):
 
                 %s
 
@@ -260,10 +231,13 @@ public class PromptBuilderService {
                 }
 
                 Regras adicionais do JSON:
-                - O array "checklist" DEVE conter exatamente os 16 objetos listados em <criterios_validacao>, na mesma
-                  ordem, cada um com a "chave" EXATA indicada (nunca traduza, abrevie ou altere a grafia da chave).
+                - O array "checklist" DEVE conter exatamente os itens listados em <criterios_validacao> (a
+                  quantidade varia conforme o tipo de desenvolvimento — nao inclua nem omita nenhum dos listados
+                  ali), na mesma ordem, cada um com a "chave" EXATA indicada (nunca traduza, abrevie ou altere a
+                  grafia da chave).
                 - "principaisRiscos", "checklist", "pontosCriticos" e "recomendacoes" DEVEM ser arrays (podem ser []
-                  quando nao aplicavel, exceto "checklist" que e sempre fixo em 16 itens).
+                  quando nao aplicavel, exceto "checklist" que nunca fica vazio — sempre tem os itens de
+                  <criterios_validacao>).
                 - NAO inclua os campos "score" nem "classificacao" — eles sao calculados automaticamente a partir do
                   checklist fora deste prompt; se voce os incluir mesmo assim, eles serao ignorados.
                 - PROIBIDO incluir o campo "chainOfThought_Analysis" ou qualquer outro campo de raciocinio no JSON.
@@ -287,7 +261,7 @@ public class PromptBuilderService {
                 usuario contra os <criterios_validacao> e a <validacao_adicional_por_tipo_wricef>. Utilize o
                 <metodo_cot> para estruturar seu raciocinio antes do veredito final. Assim que tiver um veredito, siga
                 estritamente a estrutura de <saida> para finalizar o processo.
-                """.formatted(devType.displayName(), typeSpecificCriteria);
+                """.formatted(devType.displayName(), criteriosValidacao, typeSpecificCriteria);
     }
 
     public String buildUserPrompt(String documentText) {
@@ -302,7 +276,92 @@ public class PromptBuilderService {
                 """.formatted(documentText);
     }
 
-     DevType detectDevType(String documentText) {
+    // Texto de "Como avaliar" + exemplo de cada um dos 15 criterios possiveis (sem numero — o
+    // numero e adicionado dinamicamente por buildCriteriosValidacao, na ordem deste mapa, pulando
+    // os condicionais que nao se aplicam ao DevType detectado).
+    private static final Map<ChecklistItemKey, String> CRITERIOS_TEXTO = criteriosTexto();
+
+    private static Map<ChecklistItemKey, String> criteriosTexto() {
+        Map<ChecklistItemKey, String> m = new LinkedHashMap<>();
+        m.put(ChecklistItemKey.DESCRICAO_PROCESSO, """
+                Descricao do processo (chave: descricao_processo)
+                  Como avaliar: REGRA OBJETIVA — se a EF descrever claramente o cenario atual (o que acontece/comportamento hoje) E o cenario futuro (o que deve mudar apos o desenvolvimento), classifique como OK, mesmo que sejam poucas frases e sem mapeamento formal de atores, eventos ou etapas numeradas. Isso e suficiente para desenvolvimentos pontuais (enhancements, ajustes, correcoes). NAO rebaixe para Parcial só porque "falta mais detalhamento operacional" quando o que muda ja esta claro — essa exigencia extra de formalismo so se aplica a processos de negocio complexos (workflows multi-etapas, integracoes entre varias areas), nao a ajustes pontuais. Parcial apenas quando a EF nao deixar claro o que muda (descricao vaga ou generica); Ausente quando nao houver nenhum contexto do que e feito hoje nem do que deve mudar.
+                  Exemplo (processo complexo): Processo de criacao de pedido de venda iniciado pela area comercial, validado por credito, faturado no SD e integrado ao financeiro apos emissao da nota.
+                  Exemplo (ajuste pontual — classifique como OK): Hoje o campo BSARK esta bloqueado para edicao na transacao VA02 para pedidos do Salesforce; apos o ajuste, a edicao deve ser permitida quando o pedido atender as condicoes de negocio definidas.""");
+        m.put(ChecklistItemKey.OBJETIVO_ESCOPO, """
+                Objetivo e escopo (chave: objetivo_escopo)
+                  Como avaliar: REGRA OBJETIVA — se a EF disser claramente o objetivo do desenvolvimento (o que deve ser construido/ajustado) E delimitar o escopo de alguma forma verificavel, classifique como OK. A delimitacao de escopo pode vir tanto como uma lista explicita de "fora do escopo" quanto como criterios de inclusao especificos (ex: "aplica-se apenas para organizacao de vendas X e tipos de pedido Y") — criterios de inclusao especificos JA delimitam o escopo por definicao, mesmo sem mencionar exclusoes explicitamente. NAO rebaixe para Parcial só por nao existir uma secao formal de "fora do escopo" quando os criterios de inclusao ja deixam claro o que esta dentro. Parcial apenas quando o objetivo existir mas NAO houver nenhuma forma de delimitacao (nem inclusao nem exclusao, nem modulo/transacao definidos); Ausente quando nao disser o que deve ser construido.
+                  Exemplo: Criar relatorio ALV no modulo MM para acompanhar pedidos de compra em aberto por centro e fornecedor; fora do escopo alteracao no processo de aprovacao.
+                  Exemplo (delimitacao por inclusao — classifique como OK): Permitir edicao dos campos X e Y na transacao Z apenas para organizacao de vendas 01BR e tipos de pedido ZO12/ZO41; demais organizacoes e tipos continuam bloqueados.""");
+        m.put(ChecklistItemKey.CASOS_USO, """
+                Casos de uso principais (chave: casos_uso)
+                  Como avaliar: identifique os cenarios principais de uso, quem executa, em qual transacao/tela/job, quais entradas utiliza e qual saida ou acao esperada. Parcial quando cita usuarios ou funcionalidades sem fluxo de uso; Ausente quando nao houver cenarios executaveis.
+                  Exemplo: Comprador acessa a transacao ZMM_PED_ABERTO, informa centro e periodo, executa a consulta e exporta a lista de pedidos pendentes para Excel.""");
+        m.put(ChecklistItemKey.FLUXOS_ALTERNATIVOS, """
+                Fluxos alternativos (chave: fluxos_alternativos)
+                  Como avaliar: busque comportamento para excecoes funcionais e tecnicas: retorno sem dados, dados invalidos, timeout, duplicidade, cancelamento, rejeicao, indisponibilidade de sistema ou falha de integracao. Parcial quando houver somente mencao generica a erro; Ausente quando apenas o fluxo feliz estiver descrito.
+                  Exemplo: Se nao houver pedidos para o filtro informado, exibir mensagem informativa; se a RFC do sistema externo falhar, registrar erro e permitir reprocessamento.""");
+        m.put(ChecklistItemKey.REGRAS_NEGOCIO, """
+                Regras de negocio (chave: regras_negocio)
+                  Como avaliar: procure regras objetivas no formato condicao/acao, formulas, criterios de selecao, validacoes, excecoes e prioridades. Parcial quando as regras forem textuais, ambiguas ou sem parametros; Ausente quando nao houver decisao de negocio documentada.
+                  Exemplo: SE o pedido estiver bloqueado por credito, ENTAO nao enviar para faturamento; SE o valor for maior que R$ 50.000, exigir aprovacao do gerente regional.""");
+        m.put(ChecklistItemKey.TRATAMENTO_EXCECOES, """
+                Tratamento de excecoes (chave: tratamento_excecoes)
+                  Como avaliar: verifique se a EF define como tratar erros funcionais, erros tecnicos, falhas de gravacao, indisponibilidade de dependencia, registros rejeitados e retomada do processamento. Parcial quando listar erros sem acao esperada; Ausente quando nao houver tratamento definido.
+                  Exemplo: Para material inexistente, rejeitar o registro, gravar mensagem no log com MATNR e linha do arquivo, continuar os demais registros e disponibilizar relatorio de rejeicoes.""");
+        m.put(ChecklistItemKey.INPUTS_OUTPUTS, """
+                Inputs e outputs (chave: inputs_outputs)
+                  Como avaliar: confirme se entradas e saidas estao nomeadas, com origem/destino, obrigatoriedade, formato, meio de execucao e exemplos. Parcial quando houver apenas descricao funcional sem estrutura; Ausente quando nao for possivel saber o que entra e o que sai.
+                  Exemplo: Entrada: arquivo CSV recebido via SFTP com fornecedor, material e quantidade. Saida: ordem de compra criada no SAP e arquivo de retorno com status por linha.""");
+        m.put(ChecklistItemKey.CAMPOS_ESTRUTURA_DADOS, """
+                Campos e estrutura de dados — origem, tipo, tamanho, formato, dominio/range, obrigatoriedade (chave: campos_estrutura_dados)
+                  Como avaliar: procure lista de campos com nome funcional e tecnico, tabela/estrutura de origem, tipo SAP, tamanho, formato, dominio/range, obrigatoriedade, regra de preenchimento e exemplo de valor. Parcial quando houver campos sem metadados; Ausente quando citar dados de forma generica.
+                  Exemplo: MATNR - origem MARA-MATNR, CHAR 18, obrigatorio, sem zeros a esquerda na entrada; BUDAT - DATS 8, formato AAAAMMDD, obrigatorio.""");
+        m.put(ChecklistItemKey.DEPENDENCIAS, """
+                Dependencias — integracoes, tabelas SAP, programas predecessores, servicos, arquivos, sistemas externos (chave: dependencias)
+                  Como avaliar: verifique nomes tecnicos de tabelas, BAPIs, BADIs, RFCs, APIs, jobs, programas, transacoes, filas, topicos, arquivos, diretorios e sistemas externos. Parcial quando dependencias forem citadas sem nome tecnico; Ausente quando nao houver mapa de dependencias.
+                  Exemplo: Ler VBAK/VBAP, chamar BAPI_SALESORDER_CHANGE, consumir API REST do CRM, receber arquivo em /interfaces/in/pedidos e executar apos job ZSD_ATUALIZA_STATUS.""");
+        m.put(ChecklistItemKey.CONTROLE_ACESSO, """
+                Controle de acesso / autorizacoes (chave: controle_acesso)
+                  Como avaliar: busque perfis, papeis, objetos de autorizacao, transacoes liberadas, segregacao por area/empresa, restricoes de dados e comportamento quando o usuario nao tiver permissao. Parcial quando mencionar apenas "acesso restrito"; Ausente quando nao tratar autorizacao.
+                  Exemplo: Usuarios com papel ZMM_COMPRADOR podem executar ZMM_PED_ABERTO; validar objeto M_BEST_WRK por centro e bloquear visualizacao de centros nao autorizados.""");
+        m.put(ChecklistItemKey.VOLUME_FREQUENCIA, """
+                Volume de dados e frequencia de execucao (chave: volume_frequencia)
+                  Como avaliar: procure numeros concretos de volume e frequencia: registros por execucao, execucoes por hora/dia/mes, tamanho maximo de lote, janela de processamento, crescimento esperado e tempo limite aceitavel. Parcial quando houver apenas "alto volume" ou "diario" sem quantidade; Ausente quando nao houver dados para dimensionar performance.
+                  Exemplo: Execucao online via Fiori processando cerca de 50 registros por clique; ou job background diario as 23h processando ate 100.000 registros mensais em janela maxima de 2 horas.""");
+        m.put(ChecklistItemKey.LOGS_REPROCESSAMENTO, """
+                Logs, rastreabilidade e reprocessamento/recuperacao (chave: logs_reprocessamento)
+                  Como avaliar: verifique se define onde registrar logs, quais campos rastrear, nivel de detalhe, identificador de correlacao, consulta operacional, retencao, reprocessamento e recuperacao em falha. Parcial quando houver log sem reprocessamento ou sem dados rastreaveis; Ausente quando nao houver estrategia operacional.
+                  Exemplo: Gravar Application Log SLG1 objeto ZPEDIDOS com ID do lote, usuario, data/hora, status por item e opcao de reprocessar apenas registros com erro.""");
+        m.put(ChecklistItemKey.MENSAGENS_VALIDACOES, """
+                Mensagens e validacoes (chave: mensagens_validacoes)
+                  Como avaliar: procure validacoes de campos, regras de obrigatoriedade, dominios permitidos, mensagens de erro/sucesso/alerta, codigo ou texto da mensagem e momento de exibicao. Parcial quando validacoes existirem sem mensagem clara; Ausente quando nao houver validacoes documentadas.
+                  Exemplo: Validar que centro e obrigatorio; se vazio, exibir "Centro deve ser informado". Validar fornecedor ativo; se bloqueado, retornar mensagem de erro com codigo ZMM001.""");
+        m.put(ChecklistItemKey.CONDICOES_TESTE, """
+                Condicoes de teste (chave: condicoes_teste)
+                  Como avaliar: identifique cenarios de teste positivos, negativos, alternativos, integrados, volumetria/performance, criterios de aceite e resultado esperado por cenario. Parcial quando houver lista incompleta sem resultado esperado; Ausente quando nao houver testes.
+                  Exemplo: Teste 1: criar pedido valido e verificar status sucesso. Teste 2: fornecedor bloqueado deve rejeitar item. Teste 3: arquivo com 10.000 linhas deve processar dentro da janela acordada.""");
+        m.put(ChecklistItemKey.MASSA_DADOS, """
+                Massa de dados (chave: massa_dados)
+                  Como avaliar: verifique se a EF informa dados de teste necessarios, origem da massa, quantidade minima, combinacoes obrigatorias, usuarios/perfis, dados mestres, dados transacionais e preparacao do ambiente. Parcial quando citar massa generica sem identificadores ou quantidade; Ausente quando nao houver dados para executar os testes.
+                  Exemplo: Usar fornecedor 10001234 ativo, material MAT-001 estendido para centro 1100, pedido 4500001234 em aberto e arquivo de teste com 50 registros validos e 10 invalidos.""");
+        return m;
+    }
+
+    private String buildCriteriosValidacao(DevType devType) {
+        StringBuilder sb = new StringBuilder();
+        int numero = 1;
+        for (Map.Entry<ChecklistItemKey, String> entry : CRITERIOS_TEXTO.entrySet()) {
+            if (!isApplicable(entry.getKey(), devType)) {
+                continue;
+            }
+            sb.append(numero).append(". ").append(entry.getValue()).append("\n\n");
+            numero++;
+        }
+        return sb.toString().stripTrailing();
+    }
+
+    public DevType detectDevType(String documentText) {
         String text = documentText == null ? "" : documentText.toLowerCase(Locale.ROOT);
 
         int reportScore = 0, enhancementScore = 0, interfaceScore = 0,

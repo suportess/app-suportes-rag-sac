@@ -3,7 +3,7 @@ package com.company.specvalidator.service.ai;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import static com.company.specvalidator.service.ai.PromptBuilderService.DevType.*;
+import static com.company.specvalidator.enums.DevType.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class PromptBuilderServiceTest {
@@ -32,6 +32,13 @@ class PromptBuilderServiceTest {
     }
 
     @Test
+    void testBuildSystemPromptOverloadAcceptsDevTypeDirectly() {
+        // evita detectar duas vezes: ValidationAgentService detecta uma vez e passa pro prompt
+        String prompt = service.buildSystemPrompt("qualquer texto", TABLE);
+        assertTrue(prompt.contains(TABLE.displayName()));
+    }
+
+    @Test
     void testPromptContainsJsonFormat() {
         String prompt = service.buildSystemPrompt("qualquer texto");
         assertTrue(prompt.contains("JSON"));
@@ -53,7 +60,7 @@ class PromptBuilderServiceTest {
     @Test
     void testPromptContainsChecklistStatusValues() {
         String prompt = service.buildSystemPrompt("qualquer texto");
-        assertTrue(prompt.contains("OK = a EF esta completa, clara e implementavel"));
+        assertTrue(prompt.contains("NAO exija perfeicao ou"));
         assertTrue(prompt.contains("Ausente = informacoes totalmente inexistentes"));
     }
 
@@ -63,21 +70,67 @@ class PromptBuilderServiceTest {
         assertTrue(prompt.contains("Objetivo e escopo"));
         assertTrue(prompt.contains("Regras de negocio"));
         assertTrue(prompt.contains("Condicoes de teste"));
-        assertTrue(prompt.contains("tabelas SAP"));
+    }
+
+    // --- criterios "obrigatorios" (9) sempre presentes, independente do tipo ---
+
+    @Test
+    void testCoreCriteriaAlwaysPresentEvenForUnknownType() {
+        String prompt = service.buildSystemPrompt("documento generico sem palavras chave especificas");
+        String[] chavesObrigatorias = {
+                "descricao_processo", "objetivo_escopo", "casos_uso", "fluxos_alternativos",
+                "regras_negocio", "tratamento_excecoes", "inputs_outputs", "condicoes_teste",
+                "massa_dados"
+        };
+        for (String chave : chavesObrigatorias) {
+            assertTrue(prompt.contains(chave), "Prompt deveria conter a chave obrigatoria: " + chave);
+        }
     }
 
     @Test
-    void testPromptContainsAll16ChecklistKeys() {
+    void testConsistenciaIsNotAChecklistItemAnymore() {
+        // consistencia saiu do checklist pontuado e virou regra transversal (item 6 das regras obrigatorias)
         String prompt = service.buildSystemPrompt("qualquer texto");
-        String[] chaves = {
-                "descricao_processo", "objetivo_escopo", "casos_uso", "fluxos_alternativos",
-                "regras_negocio", "tratamento_excecoes", "inputs_outputs", "campos_estrutura_dados",
-                "dependencias", "controle_acesso", "volume_frequencia", "logs_reprocessamento",
-                "mensagens_validacoes", "condicoes_teste", "massa_dados", "consistencia"
-        };
-        for (String chave : chaves) {
-            assertTrue(prompt.contains(chave), "Prompt deveria conter a chave: " + chave);
-        }
+        assertFalse(prompt.contains("chave: consistencia"));
+        assertTrue(prompt.contains("6. CONSISTENCIA"));
+    }
+
+    // --- criterios "condicionais" (6) so aparecem quando o DevType habilita ---
+
+    @Test
+    void testConditionalCriteriaAlwaysPresentRegardlessOfType() {
+        // controle_acesso, logs_reprocessamento e mensagens_validacoes valem pra "todos os tipos WRICEF"
+        String prompt = service.buildSystemPrompt("documento generico sem palavras chave especificas");
+        assertTrue(prompt.contains("chave: controle_acesso"));
+        assertTrue(prompt.contains("chave: logs_reprocessamento"));
+        assertTrue(prompt.contains("chave: mensagens_validacoes"));
+    }
+
+    @Test
+    void testCamposEstruturaDadosOnlyAppearsForTableType() {
+        String promptTable = service.buildSystemPrompt("nova tabela z com dicionario abap e chave primaria definida", TABLE);
+        assertTrue(promptTable.contains("chave: campos_estrutura_dados"));
+
+        String promptUnknown = service.buildSystemPrompt("documento generico sem palavras chave especificas", UNKNOWN);
+        assertFalse(promptUnknown.contains("chave: campos_estrutura_dados"));
+    }
+
+    @Test
+    void testDependenciasOnlyAppearsForReportInterfaceOuBatch() {
+        String promptReport = service.buildSystemPrompt("relatorio ALV", REPORT);
+        assertTrue(promptReport.contains("chave: dependencias"));
+
+        String promptEnhancement = service.buildSystemPrompt("implementar BADI para validacao", ENHANCEMENT);
+        assertFalse(promptEnhancement.contains("chave: dependencias"));
+    }
+
+    @Test
+    void testVolumeFrequenciaOnlyAppearsForReportInterfaceBatchOuForms() {
+        String promptForms = service.buildSystemPrompt("formulario SmartForm", FORMS);
+        assertTrue(promptForms.contains("chave: volume_frequencia"));
+
+        String promptTable = service.buildSystemPrompt("nova tabela z", TABLE);
+        assertFalse(promptTable.contains("chave: volume_frequencia"));
     }
 
     // --- chain-of-thought scratchpad ---
@@ -105,6 +158,7 @@ class PromptBuilderServiceTest {
         assertTrue(prompt.contains("FOCO NA EXECUTABILIDADE"));
         assertTrue(prompt.contains("CLASSIFICACAO RIGIDA"));
         assertTrue(prompt.contains("DETECÇAO DE RISCO"));
+        assertTrue(prompt.contains("6. CONSISTENCIA"));
     }
 
     @Test

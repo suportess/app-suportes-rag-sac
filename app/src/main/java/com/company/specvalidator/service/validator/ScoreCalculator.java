@@ -1,47 +1,80 @@
 package com.company.specvalidator.service.validator;
 
+import com.company.specvalidator.config.ScoringConfig.ScoringProperties;
 import com.company.specvalidator.dto.ai.ChecklistItem;
 import com.company.specvalidator.enums.ChecklistItemKey;
-import com.company.specvalidator.enums.ChecklistStatus;
+import com.company.specvalidator.enums.DevType;
 import com.company.specvalidator.enums.ValidationStatus;
 import org.springframework.stereotype.Component;
 
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 @Component
 public class ScoreCalculator {
 
-    // Itens cuja ausencia impede o inicio do desenvolvimento (conforme modelo do Marcio:
-    // regras de negocio, exceções, inputs/outputs, dependencias, teste). O texto original dele
-    // citava um 6o item ("erro") sem nome literal entre os 16 criterios — como nao ha
-    // confirmacao de qual criterio isso seria, optamos por nao incluir nenhum item por suposicao;
-    // mensagens_validacoes fica no -6 padrao (AUSENTE nao-critico) ate confirmacao com o Marcio.
-    private static final Set<ChecklistItemKey> ITENS_CRITICOS = Set.of(
+    // Criterios "obrigatorios" (definidos pelo negocio em 2026-07-27/28): sempre contam pro
+    // score, independente do tipo de desenvolvimento identificado.
+    private static final Set<ChecklistItemKey> ITENS_OBRIGATORIOS = EnumSet.of(
+            ChecklistItemKey.DESCRICAO_PROCESSO,
+            ChecklistItemKey.OBJETIVO_ESCOPO,
+            ChecklistItemKey.CASOS_USO,
+            ChecklistItemKey.FLUXOS_ALTERNATIVOS,
             ChecklistItemKey.REGRAS_NEGOCIO,
             ChecklistItemKey.TRATAMENTO_EXCECOES,
             ChecklistItemKey.INPUTS_OUTPUTS,
-            ChecklistItemKey.DEPENDENCIAS,
-            ChecklistItemKey.CONDICOES_TESTE
+            ChecklistItemKey.CONDICOES_TESTE,
+            ChecklistItemKey.MASSA_DADOS
     );
 
-    public int calculatePontos(ChecklistItem item) {
-        if (item.getStatus() == ChecklistStatus.OK) {
-            return 0;
-        }
-        if (item.getStatus() == ChecklistStatus.PARCIAL) {
-            return -4;
-        }
-        // AUSENTE
-        return ITENS_CRITICOS.contains(item.getChave()) ? -10 : -6;
+    // Criterios "condicionais": so contam pro score quando o DevType detectado esta no conjunto
+    // habilitado (mapa definido pelo negocio a partir das siglas WRICEF que eles passaram na
+    // reuniao de 2026-07-27/28 — ex: Dependencias so pra Report/Interface/Conversao).
+    private static final Map<ChecklistItemKey, Set<DevType>> APLICABILIDADE_CONDICIONAIS = Map.of(
+            ChecklistItemKey.CAMPOS_ESTRUTURA_DADOS, EnumSet.of(DevType.TABLE),
+            ChecklistItemKey.DEPENDENCIAS, EnumSet.of(DevType.REPORT, DevType.INTERFACE, DevType.BATCH),
+            ChecklistItemKey.CONTROLE_ACESSO, EnumSet.allOf(DevType.class),
+            ChecklistItemKey.VOLUME_FREQUENCIA, EnumSet.of(DevType.REPORT, DevType.INTERFACE, DevType.BATCH, DevType.FORMS),
+            ChecklistItemKey.LOGS_REPROCESSAMENTO, EnumSet.allOf(DevType.class),
+            ChecklistItemKey.MENSAGENS_VALIDACOES, EnumSet.allOf(DevType.class)
+    );
+
+    private final ScoringProperties scoringProperties;
+
+    public ScoreCalculator(ScoringProperties scoringProperties) {
+        this.scoringProperties = scoringProperties;
     }
 
-    public int calculateScore(List<ChecklistItem> checklist) {
-        int score = 100;
-        for (ChecklistItem item : checklist) {
-            score += calculatePontos(item);
+    public boolean isApplicable(ChecklistItemKey chave, DevType devType) {
+        if (ITENS_OBRIGATORIOS.contains(chave)) {
+            return true;
         }
-        return score; // sem piso — checklist com muitos gaps pode ficar negativo
+        Set<DevType> tiposHabilitados = APLICABILIDADE_CONDICIONAIS.get(chave);
+        return tiposHabilitados != null && tiposHabilitados.contains(devType);
+    }
+
+    /**
+     * Score proporcional: score = (conquistado / possivel) * 100.
+     * OK ganha o peso cheio do criterio, Parcial ganha uma fracao configuravel (padrao 50%,
+     * ver app.scoring.parcial-multiplier), Ausente ganha zero. So os criterios aplicaveis ao
+     * DevType entram na conta de "possivel" — por isso uma EF vazia sempre da 0 (conquistado=0),
+     * diferente do modelo antigo de "desconta de 100" que deixava um piso artificial.
+     */
+    public int calculateScore(List<ChecklistItem> checklist, DevType devType) {
+        List<ChecklistItem> aplicaveis = checklist.stream()
+                .filter(item -> isApplicable(item.getChave(), devType))
+                .toList();
+
+        int possivel = aplicaveis.stream().mapToInt(item -> pesoDe(item.getChave())).sum();
+        if (possivel == 0) {
+            return 0;
+        }
+
+        double conquistado = aplicaveis.stream().mapToDouble(this::pontosConquistados).sum();
+        return (int) Math.round((conquistado / possivel) * 100);
     }
 
     public ValidationStatus calculateClassificacao(int score) {
@@ -52,5 +85,34 @@ public class ScoreCalculator {
             return ValidationStatus.ACEITAVEL;
         }
         return ValidationStatus.APROVADO;
+    }
+
+    /**
+     * Usado so pro demonstrativo na tela (coluna "Valor") — quantos pontos do peso do criterio
+     * foram perdidos, arredondado pro inteiro mais proximo. E uma visualizacao aproximada por
+     * item; a base real do score e o calculo fracionado de {@link #calculateScore}.
+     */
+    public int calculatePontosPerdidos(ChecklistItem item) {
+        int peso = pesoDe(item.getChave());
+        double conquistado = pontosConquistados(item);
+        return (int) Math.round(conquistado - peso);
+    }
+
+    private double pontosConquistados(ChecklistItem item) {
+        int peso = pesoDe(item.getChave());
+        return switch (item.getStatus()) {
+            case OK -> peso;
+            case PARCIAL -> peso * scoringProperties.getParcialMultiplier();
+            case AUSENTE -> 0;
+        };
+    }
+
+    private int pesoDe(ChecklistItemKey chave) {
+        String jsonKey = chave.name().toLowerCase(Locale.ROOT);
+        Integer peso = scoringProperties.getPesos().get(jsonKey);
+        if (peso == null) {
+            throw new IllegalStateException("Peso nao configurado para o criterio: " + jsonKey);
+        }
+        return peso;
     }
 }

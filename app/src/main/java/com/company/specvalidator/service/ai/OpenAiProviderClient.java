@@ -15,6 +15,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 
@@ -141,6 +142,11 @@ public class OpenAiProviderClient implements AiProviderClient {
             langFuseClient.recordGenerationError(generationId, e.getMessage(), Instant.now());
             throw new AiProviderException("Rate limit do provider de IA atingido. Tente novamente em alguns minutos.", e);
         } catch (HttpClientErrorException e) {
+            langFuseClient.recordGenerationError(generationId, e.getMessage(), Instant.now());
+            throw new AiProviderException("Falha ao chamar provider de IA: " + e.getStatusCode(), e);
+        } catch (HttpServerErrorException e) {
+            // Erros 5xx (ex: 503 Service Unavailable) sao falhas transitorias do provider —
+            // precisam manter o status code na mensagem para isRetryable() reconhecer e tentar de novo.
             langFuseClient.recordGenerationError(generationId, e.getMessage(), Instant.now());
             throw new AiProviderException("Falha ao chamar provider de IA: " + e.getStatusCode(), e);
         } catch (AiProviderException e) {

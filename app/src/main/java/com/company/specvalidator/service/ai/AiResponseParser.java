@@ -45,6 +45,19 @@ public class AiResponseParser {
         output = output.trim();
 
         output = stripReasoningBlock(output);
+        output = output.trim();
+
+        // A IA as vezes escreve texto solto (ex: uma linha "Conclusao: ...") depois do "]"
+        // de fechamento do bloco de raciocinio, em vez de dentro dele como o prompt pede.
+        // Nesse caso, pula qualquer coisa antes do "{" do JSON de verdade. Seguro fazer isso
+        // aqui pois o bloco de raciocinio (que pode conter chaves soltas em texto livre) ja
+        // foi removido pelo stripReasoningBlock acima.
+        if (!output.startsWith("{")) {
+            int jsonStart = output.indexOf('{');
+            if (jsonStart != -1) {
+                output = output.substring(jsonStart);
+            }
+        }
 
         return output.trim();
     }

@@ -5,6 +5,7 @@ import com.company.specvalidator.dto.ai.AiValidationResponse;
 import com.company.specvalidator.entity.DocumentEntity;
 import com.company.specvalidator.entity.ExtractedDocumentEntity;
 import com.company.specvalidator.entity.ValidationReportEntity;
+import com.company.specvalidator.enums.DevType;
 import com.company.specvalidator.enums.DocumentStatus;
 import com.company.specvalidator.enums.ValidationStatus;
 import com.company.specvalidator.exception.ResourceValidationException;
@@ -126,7 +127,10 @@ public class ValidationAgentService {
         var sectionAnalysis = sectionAnalyzerService.analyze(extracted.getSections(), extracted.getRawText());
         langFuseClient.endSpan(sectionAnalysisSpanId, Map.of("sectionsAnalyzed", sectionAnalysis.size()), null);
 
-        String systemPrompt = promptBuilderService.buildSystemPrompt(normalized.getNormalizedText());
+        // Detecta o tipo WRICEF uma unica vez — usado tanto pro prompt (criterios especificos
+        // por tipo) quanto pro calculo do score (quais criterios condicionais contam).
+        DevType devType = promptBuilderService.detectDevType(normalized.getNormalizedText());
+        String systemPrompt = promptBuilderService.buildSystemPrompt(normalized.getNormalizedText(), devType);
         String userPrompt = promptBuilderService.buildUserPrompt(normalized.getNormalizedText());
         AiValidationResponse aiResponse = aiProviderClient.validateFunctionalSpecification(
                 AiValidationRequest.builder()
@@ -140,9 +144,9 @@ public class ValidationAgentService {
         aiResponse.setSectionAnalysis(sectionAnalysis);
 
         String scoringSpanId = langFuseClient.startSpan(traceId, null, "scoring",
-                Map.of("checklistCount", aiResponse.getChecklist().size()));
-        aiResponse.getChecklist().forEach(item -> item.setPontos(scoreCalculator.calculatePontos(item)));
-        int score = scoreCalculator.calculateScore(aiResponse.getChecklist());
+                Map.of("checklistCount", aiResponse.getChecklist().size(), "devType", devType.toString()));
+        aiResponse.getChecklist().forEach(item -> item.setPontos(scoreCalculator.calculatePontosPerdidos(item)));
+        int score = scoreCalculator.calculateScore(aiResponse.getChecklist(), devType);
         ValidationStatus classificacao = scoreCalculator.calculateClassificacao(score);
         aiResponse.setScore(score);
         aiResponse.setClassificacao(classificacao);
