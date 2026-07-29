@@ -65,3 +65,30 @@ app:
       temperature: 0.0
       timeout-seconds: 120
       max-retries: 3
+
+  # Pesos por criterio do checklist (definidos pelo negocio - Marcio/Manu - em 2026-07-27/28).
+  # "consistencia" nao entra aqui: saiu do checklist pontuado e virou regra geral no prompt.
+  scoring:
+    parcial-multiplier: 0.5
+    pesos:
+      descricao_processo: 3
+      objetivo_escopo: 4
+      casos_uso: 4
+      fluxos_alternativos: 5
+      regras_negocio: 5
+      tratamento_excecoes: 3
+      inputs_outputs: 4
+      condicoes_teste: 4
+      massa_dados: 5
+      campos_estrutura_dados: 3
+      dependencias: 3
+      controle_acesso: 3
+      volume_frequencia: 3
+      logs_reprocessamento: 3
+      mensagens_validacoes: 3
+
+langfuse:
+  enabled: ${LANGFUSE_ENABLED:false}
+  host: ${LANGFUSE_HOST:https://cloud.langfuse.com}
+  public-key: ${LANGFUSE_PUBLIC_KEY:}
+  secret-key: ${LANGFUSE_SECRET_KEY:}
