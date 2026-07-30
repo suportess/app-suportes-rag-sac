@@ -85,14 +85,14 @@ public class PromptBuilderService {
                   - Operacao
 
                 4. CLASSIFICACAO RIGIDA
-                A classificacao para os itens encontrados desse seguir dessa forma:
+                A classificacao para os itens encontrados deve seguir dessa forma:
                   - OK = a informacao esta presente e clara o suficiente para o desenvolvedor iniciar a implementacao,
                     MESMO que existam detalhes adicionais que poderiam ser refinados depois — NAO exija perfeicao ou
                     exaustao de detalhes para classificar como OK
                   - Parcial = a informacao existe, mas e ambigua, contraditoria ou insuficiente a ponto de gerar duvida
                     REAL sobre como implementar ou testar (nao classifique como Parcial só porque "poderia ter mais
                     detalhe" quando o que ja esta escrito e suficiente para prosseguir)
-                  - Ausente = informacoes totalmente inexistentes
+                  - Ausente = informacao totalmente inexistente dentro do documento
 
                 5. DETECÇAO DE RISCO
                   Sempre faca a identificacao do impacto no ciclo de:
@@ -103,12 +103,15 @@ public class PromptBuilderService {
                     - Produtizacao
                     A identificacao precose do impacto ira reduzir o retrabalho, entao seja preciso na idenficiacao desses
 
-                6. CONSISTENCIA (regra transversal, nao e mais um item pontuado do checklist)
-                  Em TODOS os itens do checklist, avalie tambem se o documento e coerente entre secoes: ausencia de
-                  ambiguidade, ausencia de conflito interno, clareza para implementacao e testabilidade. Se encontrar
-                  inconsistencia (ex: a EF usa nomes diferentes pro mesmo campo/tabela/transacao, ou uma secao
-                  contradiz outra), isso deve rebaixar a classificacao do(s) item(ns) afetado(s) pra Parcial ou
-                  Ausente — nao existe mais uma "nota de consistencia" separada, ela se reflete nos proprios itens.
+                6. CONSISTENCIA 
+                  Em TODOS os itens do checklist, avalie se o documento e coerente entre todas as secoes, ele deve ter:
+                    - ausencia de ambiguidade
+                    - ausencia de conflito interno
+                    - clareza para implementação
+                    - testabilidade
+                  Caso encontre alguma inconsistência, como por exemplo: a EF usa nomes diferentes pro mesmo campo/tabela/transacao, 
+                  ou uma secao contradiz outra. Voce deve rebaixar a classificacao do(s) item(ns) afetado(s) pra Parcial 
+                  ou Ausente — nao existe mais uma "nota de consistencia" separada, ela se reflete nos proprios itens.
                 </regras_obrigatorias>
 
                 <criterios_validacao>
@@ -232,8 +235,8 @@ public class PromptBuilderService {
 
                 Regras adicionais do JSON:
                 - O array "checklist" DEVE conter exatamente os itens listados em <criterios_validacao> (a
-                  quantidade varia conforme o tipo de desenvolvimento — nao inclua nem omita nenhum dos listados
-                  ali), na mesma ordem, cada um com a "chave" EXATA indicada (nunca traduza, abrevie ou altere a
+                  quantidade varia conforme o tipo de desenvolvimento — nao inclua, nem omita nemhum dos itens listados), 
+                  na mesma ordem, cada um com a "chave" EXATA indicada (nunca traduza, abrevie ou altere a
                   grafia da chave).
                 - "principaisRiscos", "checklist", "pontosCriticos" e "recomendacoes" DEVEM ser arrays (podem ser []
                   quando nao aplicavel, exceto "checklist" que nunca fica vazio — sempre tem os itens de

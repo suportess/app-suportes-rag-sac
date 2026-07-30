@@ -61,7 +61,7 @@ class PromptBuilderServiceTest {
     void testPromptContainsChecklistStatusValues() {
         String prompt = service.buildSystemPrompt("qualquer texto");
         assertTrue(prompt.contains("NAO exija perfeicao ou"));
-        assertTrue(prompt.contains("Ausente = informacoes totalmente inexistentes"));
+        assertTrue(prompt.contains("Ausente = informacao totalmente inexistente dentro do documento"));
     }
 
     @Test

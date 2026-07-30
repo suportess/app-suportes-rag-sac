@@ -31,7 +31,7 @@ public class OpenAiConfig {
         public static class OpenAi {
             private String apiKey;
             private String model = "gpt-4.1-mini";
-            private double temperature = 0.1;
+            private double temperature = 0.0;
             private int timeoutSeconds = 120;
             private int maxRetries = 3;
         }
