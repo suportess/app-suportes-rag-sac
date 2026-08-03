@@ -33,6 +33,7 @@ public enum ChecklistItemKey {
     @JsonProperty("condicoes_teste")
     CONDICOES_TESTE,
     @JsonProperty("massa_dados")
+    MASSA_DADOS,
     @JsonEnumDefaultValue
-    MASSA_DADOS
+    UNKNOWN
 }

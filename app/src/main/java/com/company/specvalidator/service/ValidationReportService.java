@@ -14,6 +14,9 @@ import com.company.specvalidator.repository.ValidationReportRepository;
 import com.company.specvalidator.dto.response.SectionStatus;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.company.specvalidator.enums.ChecklistItemKey;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +24,8 @@ import java.util.List;
 
 @Service
 public class ValidationReportService {
+
+    private static final Logger log = LoggerFactory.getLogger(ValidationReportService.class);
 
     private final ValidationReportRepository validationReportRepository;
     private final ChecklistItemRepository checklistItemRepository;
@@ -55,6 +60,13 @@ public class ValidationReportService {
         ValidationReportEntity saved = validationReportRepository.save(report);
 
         List<ChecklistItemEntity> checklistEntities = response.getChecklist().stream()
+                .filter(item -> {
+                    if (item.getChave() == ChecklistItemKey.UNKNOWN) {
+                        log.warn("Checklist item com chave desconhecida ignorado: item='{}'", item.getItem());
+                        return false;
+                    }
+                    return true;
+                })
                 .map(item -> toChecklistItemEntity(saved, item))
                 .toList();
         checklistItemRepository.saveAll(checklistEntities);
