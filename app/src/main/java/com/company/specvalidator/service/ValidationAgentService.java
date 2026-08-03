@@ -153,7 +153,9 @@ public class ValidationAgentService {
         aiResponse.setSectionAnalysis(sectionAnalysis);
 
         // Marca itens retornados pela IA como aplicáveis e calcula métricas
-        List<ChecklistItem> checklist = new ArrayList<>(aiResponse.getChecklist());
+        List<ChecklistItem> checklist = new ArrayList<>(aiResponse.getChecklist().stream()
+                .filter(item -> item.getChave() != ChecklistItemKey.UNKNOWN)
+                .toList());
         checklist.forEach(item -> {
             item.setAplicavel(true);
             item.setPontos(scoreCalculator.calculatePontosPerdidos(item));
@@ -165,6 +167,7 @@ public class ValidationAgentService {
         Set<ChecklistItemKey> retornados = checklist.stream()
                 .map(ChecklistItem::getChave).collect(Collectors.toSet());
         Arrays.stream(ChecklistItemKey.values())
+                .filter(chave -> chave != ChecklistItemKey.UNKNOWN)
                 .filter(chave -> !retornados.contains(chave))
                 .forEach(chave -> {
                     int peso = scoreCalculator.pesoDe(chave);
