@@ -10,4 +10,6 @@ public class LangFuseProperties {
     private String host = "https://cloud.langfuse.com";
     private String publicKey;
     private String secretKey;
+    private String environment = "production";
+    private String promptName = "promptBuilderService";
 }

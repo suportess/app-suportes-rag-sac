@@ -42,16 +42,57 @@ public class LangFuseClient {
     }
 
     public void startTrace(String traceId, String name, Map<String, Object> metadata) {
+        startTrace(traceId, name, null, null, metadata);
+    }
+
+    /**
+     * sessionId agrupa varias traces na aba Sessions da Langfuse — usado pra rodar o mesmo
+     * documento/dataset varias vezes e comparar as execucoes juntas (testes de consistencia,
+     * dataset runs).
+     */
+    public void startTrace(String traceId, String name, String sessionId, Map<String, Object> metadata) {
+        startTrace(traceId, name, sessionId, null, metadata);
+    }
+
+    /**
+     * input fica gravado como o campo "input" nativo da trace — e' o que a aba Datasets >
+     * Experiments usa pra montar a coluna "Input" comparando com o expected_output do item.
+     * Sem isso a coluna fica vazia mesmo com tudo funcionando (so o "output", setado no
+     * endTrace, aparece).
+     */
+    public void startTrace(String traceId, String name, String sessionId, Object input, Map<String, Object> metadata) {
         if (!properties.isEnabled()) return;
         try {
             Map<String, Object> traceBody = new HashMap<>();
             traceBody.put("id", traceId);
             traceBody.put("name", name);
+            traceBody.put("environment", properties.getEnvironment());
+            if (sessionId != null) traceBody.put("sessionId", sessionId);
+            if (input != null) traceBody.put("input", input);
             if (metadata != null) traceBody.put("metadata", metadata);
 
             ingest(List.of(event("trace-create", traceBody)));
         } catch (Exception e) {
             log.warn("LangFuse: erro ao iniciar trace {} - {}", name, e.getMessage());
+        }
+    }
+
+    /**
+     * Finaliza o trace raiz com o resultado final da validacao. A Langfuse trata um novo
+     * evento trace-create com o mesmo id como upsert (so os campos enviados aqui sao
+     * sobrescritos, o resto do trace ja criado em startTrace e preservado).
+     */
+    public void endTrace(String traceId, Object output, List<String> tags) {
+        if (!properties.isEnabled()) return;
+        try {
+            Map<String, Object> traceBody = new HashMap<>();
+            traceBody.put("id", traceId);
+            if (output != null) traceBody.put("output", output);
+            if (tags != null && !tags.isEmpty()) traceBody.put("tags", tags);
+
+            ingest(List.of(event("trace-create", traceBody)));
+        } catch (Exception e) {
+            log.warn("LangFuse: erro ao finalizar trace {} - {}", traceId, e.getMessage());
         }
     }
 
@@ -65,6 +106,7 @@ public class LangFuseClient {
             if (parentSpanId != null) spanBody.put("parentObservationId", parentSpanId);
             spanBody.put("name", name);
             spanBody.put("startTime", Instant.now().toString());
+            spanBody.put("environment", properties.getEnvironment());
             if (input != null) spanBody.put("input", input);
 
             ingest(List.of(event("span-create", spanBody)));
@@ -107,7 +149,7 @@ public class LangFuseClient {
     public void recordGenerationStart(String traceId, String generationId,
                                       List<Map<String, Object>> messages,
                                       String model, double temperature,
-                                      Instant startTime) {
+                                      Instant startTime, Integer promptVersion) {
         if (!properties.isEnabled()) return;
         try {
             Map<String, Object> genBody = new HashMap<>();
@@ -118,6 +160,11 @@ public class LangFuseClient {
             genBody.put("modelParameters", Map.of("temperature", temperature));
             genBody.put("input", messages);
             genBody.put("startTime", startTime.toString());
+            genBody.put("environment", properties.getEnvironment());
+            if (promptVersion != null) {
+                genBody.put("promptName", properties.getPromptName());
+                genBody.put("promptVersion", promptVersion);
+            }
 
             ingest(List.of(event("generation-create", genBody)));
         } catch (Exception e) {

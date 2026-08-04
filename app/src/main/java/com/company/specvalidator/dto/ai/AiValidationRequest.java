@@ -14,4 +14,5 @@ public class AiValidationRequest {
     private String systemPrompt;
     private String userPrompt;
     private String traceId;
+    private Integer promptVersion;
 }

@@ -94,7 +94,7 @@ public class OpenAiProviderClient implements AiProviderClient {
         String generationId = UUID.randomUUID().toString();
         Instant startTime = Instant.now();
 
-        langFuseClient.recordGenerationStart(traceId, generationId, messages, model, temperature, startTime);
+        langFuseClient.recordGenerationStart(traceId, generationId, messages, model, temperature, startTime, request.getPromptVersion());
 
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(apiKey);

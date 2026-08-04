@@ -12,7 +12,9 @@ import com.company.specvalidator.exception.ResourceValidationException;
 import com.company.specvalidator.repository.ExtractedDocumentRepository;
 import com.company.specvalidator.service.ai.AiProviderClient;
 import com.company.specvalidator.service.ai.LangFuseClient;
+import com.company.specvalidator.service.ai.LangFusePromptService;
 import com.company.specvalidator.service.ai.PromptBuilderService;
+import com.company.specvalidator.service.ai.PromptResult;
 import com.company.specvalidator.service.validator.ScoreCalculator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -47,6 +49,7 @@ public class ValidationAgentService {
     private final FileStorageService fileStorageService;
     private final SectionAnalyzerService sectionAnalyzerService;
     private final LangFuseClient langFuseClient;
+    private final LangFusePromptService langFusePromptService;
 
     public ValidationAgentService(DocumentService documentService,
                                   TextExtractionService textExtractionService,
@@ -58,7 +61,8 @@ public class ValidationAgentService {
                                   ScoreCalculator scoreCalculator,
                                   FileStorageService fileStorageService,
                                   SectionAnalyzerService sectionAnalyzerService,
-                                  LangFuseClient langFuseClient) {
+                                  LangFuseClient langFuseClient,
+                                  LangFusePromptService langFusePromptService) {
         this.documentService = documentService;
         this.textExtractionService = textExtractionService;
         this.documentNormalizerService = documentNormalizerService;
@@ -70,6 +74,7 @@ public class ValidationAgentService {
         this.fileStorageService = fileStorageService;
         this.sectionAnalyzerService = sectionAnalyzerService;
         this.langFuseClient = langFuseClient;
+        this.langFusePromptService = langFusePromptService;
     }
 
     @Transactional
@@ -102,7 +107,9 @@ public class ValidationAgentService {
         langFuseClient.startTrace(traceId, "document-validation", Map.of("documentId", documentId.toString()));
 
         String extractionSpanId = langFuseClient.startSpan(traceId, null, "text-extraction",
-                Map.of("documentId", documentId));
+                Map.of("documentId", documentId,
+                        "originalFileName", document.getOriginalFileName(),
+                        "documentType", document.getDocumentType().toString()));
         ExtractedDocument extracted;
         try {
             extracted = extract(documentId, directFile);
@@ -113,7 +120,9 @@ public class ValidationAgentService {
         log.info("Texto extraido: {} caracteres, {} secoes detectadas via headings",
                 extracted.getRawText().length(), extracted.getSections().size());
         langFuseClient.endSpan(extractionSpanId,
-                Map.of("rawTextLength", extracted.getRawText().length(), "sectionsDetected", extracted.getSections().size()),
+                Map.of("rawTextLength", extracted.getRawText().length(),
+                        "sectionsDetected", extracted.getSections().size(),
+                        "textPreview", preview(extracted.getRawText())),
                 null);
 
         String normalizationSpanId = langFuseClient.startSpan(traceId, null, "normalization",
@@ -134,26 +143,112 @@ public class ValidationAgentService {
         String sectionAnalysisSpanId = langFuseClient.startSpan(traceId, null, "section-analysis",
                 Map.of("sectionsDetected", extracted.getSections().size()));
         var sectionAnalysis = sectionAnalyzerService.analyze(extracted.getSections(), extracted.getRawText());
-        langFuseClient.endSpan(sectionAnalysisSpanId, Map.of("sectionsAnalyzed", sectionAnalysis.size()), null);
+        langFuseClient.endSpan(sectionAnalysisSpanId,
+                Map.of("sectionsAnalyzed", sectionAnalysis.size(), "sections", sectionAnalysis),
+                null);
 
         // Detecta o tipo WRICEF uma unica vez — usado tanto pro prompt (criterios especificos
         // por tipo) quanto pro calculo do score (quais criterios condicionais contam).
         DevType devType = promptBuilderService.detectDevType(normalized.getNormalizedText());
-        String systemPrompt = promptBuilderService.buildSystemPrompt(normalized.getNormalizedText(), devType);
-        String userPrompt = promptBuilderService.buildUserPrompt(normalized.getNormalizedText());
+
+        // Tenta o prompt versionado na Langfuse (Prompt Management); se estiver desabilitada,
+        // sem label "production" ou fora do ar, cai pro fallback hardcoded do
+        // PromptBuilderService — a validacao nunca deve depender da Langfuse estar disponivel.
+        Map<String, String> promptVariables = promptBuilderService.buildPromptVariables(normalized.getNormalizedText(), devType);
+        PromptResult promptResult = langFusePromptService.buildPrompt(promptVariables)
+                .orElseGet(() -> new PromptResult(
+                        promptBuilderService.buildSystemPrompt(normalized.getNormalizedText(), devType),
+                        promptBuilderService.buildUserPrompt(normalized.getNormalizedText()),
+                        null));
+
         AiValidationResponse aiResponse = aiProviderClient.validateFunctionalSpecification(
                 AiValidationRequest.builder()
                         .documentId(documentId)
-                        .systemPrompt(systemPrompt)
-                        .userPrompt(userPrompt)
+                        .systemPrompt(promptResult.systemPrompt())
+                        .userPrompt(promptResult.userPrompt())
                         .traceId(traceId)
+                        .promptVersion(promptResult.promptVersion())
                         .build()
         );
 
         aiResponse.setSectionAnalysis(sectionAnalysis);
 
-        // Marca itens retornados pela IA como aplicáveis e calcula métricas
-        List<ChecklistItem> checklist = new ArrayList<>(aiResponse.getChecklist().stream()
+        List<ChecklistItem> checklist = finalizeChecklist(aiResponse.getChecklist());
+        aiResponse.setChecklist(checklist);
+
+        String scoringSpanId = langFuseClient.startSpan(traceId, null, "scoring",
+                Map.of("checklistCount", checklist.size(), "devType", devType.toString()));
+        int score = scoreCalculator.calculateScore(aiResponse.getChecklist(), devType);
+        ValidationStatus classificacao = scoreCalculator.calculateClassificacao(score);
+        aiResponse.setScore(score);
+        aiResponse.setClassificacao(classificacao);
+        langFuseClient.endSpan(scoringSpanId,
+                Map.of("score", score, "classificacao", classificacao.toString(), "checklist", checklist),
+                null);
+
+        log.info("Score: {}, classificacao: {}", score, classificacao);
+
+        ValidationReportEntity report = validationReportService.saveReport(document, aiResponse);
+
+        document.setStatus(DocumentStatus.VALIDATED);
+        documentService.save(document);
+
+        langFuseClient.endTrace(traceId,
+                Map.of("qualidade", aiResponse.getQualidade(), "score", score, "classificacao", classificacao.toString()),
+                List.of(devType.toString(), classificacao.toString()));
+
+        log.info("Validacao concluida para documento id={}, reportId={}", documentId, report.getId());
+        return report;
+    }
+
+    /**
+     * Roda o pipeline de IA+score (sem extracao de arquivo, sem persistencia em banco) pra um
+     * texto de EF avulso — usado pra rodar itens de um Dataset da Langfuse contra o sistema real
+     * e comparar o resultado com o expected_output de cada item. sessionId agrupa todas as
+     * execucoes de uma mesma rodada na aba Sessions da Langfuse.
+     */
+    public DatasetRunItemResult runForDatasetItem(String rawText, String traceId, String sessionId, String itemLabel) {
+        langFuseClient.startTrace(traceId, "dataset-run-item", sessionId, preview(rawText), Map.of("itemLabel", itemLabel));
+
+        NormalizedDocument normalized = documentNormalizerService.normalize(rawText);
+        var sectionAnalysis = sectionAnalyzerService.analyze(Map.of(), rawText);
+
+        DevType devType = promptBuilderService.detectDevType(normalized.getNormalizedText());
+        Map<String, String> promptVariables = promptBuilderService.buildPromptVariables(normalized.getNormalizedText(), devType);
+        PromptResult promptResult = langFusePromptService.buildPrompt(promptVariables)
+                .orElseGet(() -> new PromptResult(
+                        promptBuilderService.buildSystemPrompt(normalized.getNormalizedText(), devType),
+                        promptBuilderService.buildUserPrompt(normalized.getNormalizedText()),
+                        null));
+
+        AiValidationResponse aiResponse = aiProviderClient.validateFunctionalSpecification(
+                AiValidationRequest.builder()
+                        .systemPrompt(promptResult.systemPrompt())
+                        .userPrompt(promptResult.userPrompt())
+                        .traceId(traceId)
+                        .promptVersion(promptResult.promptVersion())
+                        .build()
+        );
+        aiResponse.setSectionAnalysis(sectionAnalysis);
+
+        List<ChecklistItem> checklist = finalizeChecklist(aiResponse.getChecklist());
+        int score = scoreCalculator.calculateScore(checklist, devType);
+        ValidationStatus classificacao = scoreCalculator.calculateClassificacao(score);
+
+        langFuseClient.endTrace(traceId,
+                Map.of("qualidade", aiResponse.getQualidade(), "score", score, "classificacao", classificacao.toString()),
+                List.of("dataset-run", devType.toString(), classificacao.toString()));
+
+        return new DatasetRunItemResult(score, classificacao.toString(), aiResponse.getQualidade());
+    }
+
+    /**
+     * Marca itens retornados pela IA como aplicaveis e calcula peso/pontos, e completa com os
+     * criterios nao enviados ao prompt (nao aplicaveis ao DevType detectado). Usado tanto pelo
+     * fluxo real de upload quanto pelos dataset runs.
+     */
+    private List<ChecklistItem> finalizeChecklist(List<ChecklistItem> raw) {
+        List<ChecklistItem> checklist = new ArrayList<>(raw.stream()
                 .filter(item -> item.getChave() != ChecklistItemKey.UNKNOWN)
                 .toList());
         checklist.forEach(item -> {
@@ -163,7 +258,6 @@ public class ValidationAgentService {
             item.setPontosConquistados(scoreCalculator.pontosConquistados(item));
         });
 
-        // Completa com os critérios não enviados ao prompt (não aplicáveis ao DevType detectado)
         Set<ChecklistItemKey> retornados = checklist.stream()
                 .map(ChecklistItem::getChave).collect(Collectors.toSet());
         Arrays.stream(ChecklistItemKey.values())
@@ -182,27 +276,12 @@ public class ValidationAgentService {
                             .pontos(0)
                             .build());
                 });
-        aiResponse.setChecklist(checklist);
+        return checklist;
+    }
 
-        String scoringSpanId = langFuseClient.startSpan(traceId, null, "scoring",
-                Map.of("checklistCount", checklist.size(), "devType", devType.toString()));
-        int score = scoreCalculator.calculateScore(aiResponse.getChecklist(), devType);
-        ValidationStatus classificacao = scoreCalculator.calculateClassificacao(score);
-        aiResponse.setScore(score);
-        aiResponse.setClassificacao(classificacao);
-        langFuseClient.endSpan(scoringSpanId,
-                Map.of("score", score, "classificacao", classificacao.toString()),
-                null);
-
-        log.info("Score: {}, classificacao: {}", score, classificacao);
-
-        ValidationReportEntity report = validationReportService.saveReport(document, aiResponse);
-
-        document.setStatus(DocumentStatus.VALIDATED);
-        documentService.save(document);
-
-        log.info("Validacao concluida para documento id={}, reportId={}", documentId, report.getId());
-        return report;
+    private String preview(String text) {
+        if (text == null) return "";
+        return text.length() > 500 ? text.substring(0, 500) + "..." : text;
     }
 
     private ExtractedDocument extract(Long documentId, MultipartFile directFile) {

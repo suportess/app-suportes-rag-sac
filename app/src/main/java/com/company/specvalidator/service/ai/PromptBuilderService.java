@@ -47,6 +47,21 @@ public class PromptBuilderService {
         return tiposHabilitados != null && tiposHabilitados.contains(devType);
     }
 
+    /**
+     * Variaveis dinamicas do prompt (devType/criteriosValidacao/criteriosEspecificos/entrada),
+     * usadas pra compilar o template buscado na Langfuse (Prompt Management). Os dois primeiros
+     * blocos sao os mesmos usados por buildSystemPrompt no fallback hardcoded — se mudar a
+     * logica de montagem aqui, o fallback e o template remoto continuam consistentes entre si.
+     */
+    public Map<String, String> buildPromptVariables(String documentText, DevType devType) {
+        return Map.of(
+                "devType", devType.displayName(),
+                "criteriosValidacao", buildCriteriosValidacao(devType),
+                "criteriosEspecificos", buildTypeSpecificCriteria(devType),
+                "entrada", documentText
+        );
+    }
+
     public String buildSystemPrompt(String documentText) {
         DevType devType = detectDevType(documentText);
         return buildSystemPrompt(documentText, devType);

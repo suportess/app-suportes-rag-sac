@@ -37,5 +37,9 @@ Thumbs.db
 # Uploads
 uploads/
 
+# Base de conhecimento local (não commitar)
+BASE_CONHECIMENTO.md
+notas-locais/
+
 # Logs
 *.log
