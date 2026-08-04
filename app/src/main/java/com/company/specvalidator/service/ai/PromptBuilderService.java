@@ -313,11 +313,17 @@ public class PromptBuilderService {
                   Exemplo (delimitacao por inclusao — classifique como OK): Permitir edicao dos campos X e Y na transacao Z apenas para organizacao de vendas 01BR e tipos de pedido ZO12/ZO41; demais organizacoes e tipos continuam bloqueados.""");
         m.put(ChecklistItemKey.CASOS_USO, """
                 Casos de uso principais (chave: casos_uso)
-                  Como avaliar: identifique os cenarios principais de uso, quem executa, em qual transacao/tela/job, quais entradas utiliza e qual saida ou acao esperada. Parcial quando cita usuarios ou funcionalidades sem fluxo de uso; Ausente quando nao houver cenarios executaveis.
+                  Como avaliar: REGRA OBJETIVA - identifique cenarios executaveis de ponta a ponta (ator, contexto de execucao, entrada e resultado esperado). Nao dependa de titulo literal de secao; use evidencia semantica em qualquer parte do documento.
+                  Classifique como OK quando existir pelo menos 1 cenario completo contendo, no minimo: (1) quem executa, (2) onde executa (transacao/tela/job/API), (3) entrada principal usada, e (4) saida ou acao esperada.
+                  Classifique como Parcial quando houver cenario de uso, mas faltar qualquer um dos 4 elementos minimos acima, ou quando o fluxo estiver genericamente descrito sem sequencia clara de acao.
+                  Classifique como Ausente quando nao houver nenhum cenario executavel (apenas objetivo, listas soltas ou descricao de funcionalidade sem fluxo de uso).
                   Exemplo: Comprador acessa a transacao ZMM_PED_ABERTO, informa centro e periodo, executa a consulta e exporta a lista de pedidos pendentes para Excel.""");
         m.put(ChecklistItemKey.FLUXOS_ALTERNATIVOS, """
                 Fluxos alternativos (chave: fluxos_alternativos)
-                  Como avaliar: busque comportamento para excecoes funcionais e tecnicas: retorno sem dados, dados invalidos, timeout, duplicidade, cancelamento, rejeicao, indisponibilidade de sistema ou falha de integracao. Parcial quando houver somente mencao generica a erro; Ausente quando apenas o fluxo feliz estiver descrito.
+                  Como avaliar: REGRA OBJETIVA - busque tratamento explicito para excecoes funcionais/tecnicas (ex: sem dados, dado invalido, timeout, duplicidade, rejeicao, indisponibilidade, falha de integracao), sempre com condicao e acao esperada.
+                  Classifique como OK quando houver pelo menos 2 situacoes de excecao com condicao e tratamento operacional claro (ex: bloquear criacao, registrar log, seguir com itens validos, permitir reprocessamento).
+                  Classifique como Parcial quando existir referencia a erro/excecao, mas sem acao operacional clara, sem criterio de continuidade/parada, ou cobrindo apenas 1 situacao de forma superficial.
+                  Classifique como Ausente quando apenas o fluxo feliz estiver descrito, sem tratamento de excecao.
                   Exemplo: Se nao houver pedidos para o filtro informado, exibir mensagem informativa; se a RFC do sistema externo falhar, registrar erro e permitir reprocessamento.""");
         m.put(ChecklistItemKey.REGRAS_NEGOCIO, """
                 Regras de negocio (chave: regras_negocio)
@@ -361,7 +367,10 @@ public class PromptBuilderService {
                   Exemplo: Teste 1: criar pedido valido e verificar status sucesso. Teste 2: fornecedor bloqueado deve rejeitar item. Teste 3: arquivo com 10.000 linhas deve processar dentro da janela acordada.""");
         m.put(ChecklistItemKey.MASSA_DADOS, """
                 Massa de dados (chave: massa_dados)
-                  Como avaliar: verifique se a EF informa dados de teste necessarios, origem da massa, quantidade minima, combinacoes obrigatorias, usuarios/perfis, dados mestres, dados transacionais e preparacao do ambiente. Parcial quando citar massa generica sem identificadores ou quantidade; Ausente quando nao houver dados para executar os testes.
+                  Como avaliar: REGRA OBJETIVA - verifique se a EF permite montar e executar testes com massa rastreavel. Procure: origem da massa, identificadores concretos, quantidade minima e combinacoes necessarias por cenario.
+                  Classifique como OK quando houver massa de teste utilizavel com: (1) identificadores concretos (ex: IDs de material/fornecedor/centro/deposito/pedido), (2) quantidade minima ou volumetria por cenario, e (3) combinacoes necessarias para validar sucesso e erro.
+                  Classifique como Parcial quando houver apenas parte desses elementos (ex: so volumetria, ou so variantes sem identificadores concretos, ou dados genericos sem combinacoes minimas).
+                  Classifique como Ausente quando nao houver massa de teste definida de forma utilizavel para execucao dos cenarios.
                   Exemplo: Usar fornecedor 10001234 ativo, material MAT-001 estendido para centro 1100, pedido 4500001234 em aberto e arquivo de teste com 50 registros validos e 10 invalidos.""");
         return m;
     }
