@@ -7,10 +7,15 @@ import com.company.specvalidator.exception.DocumentNotFoundException;
 import com.company.specvalidator.exception.ResourceValidationException;
 import com.company.specvalidator.repository.DocumentRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.net.MalformedURLException;
+import java.nio.file.Path;
 
 @Slf4j
 @Service
@@ -53,6 +58,20 @@ public class DocumentService {
 
     public DocumentEntity save(DocumentEntity documentEntity) {
         return documentRepository.save(documentEntity);
+    }
+
+    public Resource loadFile(DocumentEntity document) {
+        Path path = fileStorageService.resolve(document.getStoredFileName());
+        try {
+            Resource resource = new UrlResource(path.toUri());
+            if (!resource.exists() || !resource.isReadable()) {
+                throw new ResourceValidationException(
+                        "Arquivo nao encontrado no armazenamento para o documento id=" + document.getId());
+            }
+            return resource;
+        } catch (MalformedURLException e) {
+            throw new ResourceValidationException("Caminho de arquivo invalido para o documento id=" + document.getId());
+        }
     }
 
     private void validateFile(MultipartFile file) {

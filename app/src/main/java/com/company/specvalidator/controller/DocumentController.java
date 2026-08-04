@@ -13,9 +13,12 @@ import com.company.specvalidator.service.ValidationReportService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -26,6 +29,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.nio.charset.StandardCharsets;
 
 @Slf4j
 @RestController
@@ -85,6 +90,20 @@ public class DocumentController {
     @GetMapping("/{documentId}")
     public DocumentResponse getDocument(@PathVariable Long documentId) {
         return documentMapper.toResponse(documentService.getById(documentId));
+    }
+
+    @Operation(summary = "Download do arquivo original do documento")
+    @GetMapping("/{documentId}/download")
+    public ResponseEntity<Resource> download(@PathVariable Long documentId) {
+        DocumentEntity document = documentService.getById(documentId);
+        Resource resource = documentService.loadFile(document);
+        ContentDisposition disposition = ContentDisposition.attachment()
+                .filename(document.getOriginalFileName(), StandardCharsets.UTF_8)
+                .build();
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(document.getContentType()))
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
+                .body(resource);
     }
 
     private ValidationReportResponse toReportResponse(ValidationReportEntity report) {
