@@ -133,14 +133,17 @@ class PromptBuilderServiceTest {
         assertFalse(promptTable.contains("chave: volume_frequencia"));
     }
 
-    // --- chain-of-thought scratchpad ---
+    // --- exemplos (chain-of-thought removido do prompt, mantido so nos exemplos) ---
 
     @Test
-    void testPromptContainsRaciocinioScratchpad() {
+    void testPromptContainsAnaliseExamplesWithoutChainOfThought() {
         String prompt = service.buildSystemPrompt("qualquer texto");
-        // opening and closing markers of the CoT block
-        assertTrue(prompt.contains("RACIOCINIO ["));
+        // exemplos ainda mostram o raciocinio esperado (marcador ANALISE), mas o
+        // bloco de scratchpad RACIOCINIO/<metodo_cot> foi removido do prompt
+        assertTrue(prompt.contains("ANALISE ["));
         assertTrue(prompt.contains("Conclusao:"));
+        assertFalse(prompt.contains("RACIOCINIO ["));
+        assertFalse(prompt.contains("<metodo_cot>"));
     }
 
     @Test

@@ -6,7 +6,7 @@ spring:
     name: sap-spec-validator
 
   datasource:
-    url: ${DB_URL:jdbc:postgresql://192.168.1.16:5436/spec_validator}
+    url: ${DB_URL:jdbc:postgresql://localhost:5436/spec_validator}
     username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:postgres}
     hikari:
@@ -92,5 +92,5 @@ langfuse:
   host: ${LANGFUSE_HOST:https://cloud.langfuse.com}
   public-key: ${LANGFUSE_PUBLIC_KEY:}
   secret-key: ${LANGFUSE_SECRET_KEY:}
-  environment: ${LANGFUSE_ENVIRONMENT:local}
+  environment: ${LANGFUSE_ENVIRONMENT:production}
   prompt-name: ${LANGFUSE_PROMPT_NAME:promptBuilderService}

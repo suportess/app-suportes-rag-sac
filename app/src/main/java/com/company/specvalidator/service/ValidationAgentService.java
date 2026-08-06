@@ -28,6 +28,7 @@ import com.company.specvalidator.enums.ChecklistStatus;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -193,8 +194,13 @@ public class ValidationAgentService {
         document.setStatus(DocumentStatus.VALIDATED);
         documentService.save(document);
 
+        Map<String, Object> outputValidacao = new LinkedHashMap<>();
+        outputValidacao.put("score", score);
+        outputValidacao.put("classificacao", classificacao.toString());
+        outputValidacao.put("qualidade", aiResponse.getQualidade());
+
         langFuseClient.endTrace(traceId,
-                Map.of("qualidade", aiResponse.getQualidade(), "score", score, "classificacao", classificacao.toString()),
+                outputValidacao,
                 List.of(devType.toString(), classificacao.toString()));
 
         log.info("Validacao concluida para documento id={}, reportId={}", documentId, report.getId());
@@ -235,12 +241,18 @@ public class ValidationAgentService {
         int score = scoreCalculator.calculateScore(checklist, devType);
         ValidationStatus classificacao = scoreCalculator.calculateClassificacao(score);
 
+        Map<String, Object> outputDatasetRun = new LinkedHashMap<>();
+        outputDatasetRun.put("score", score);
+        outputDatasetRun.put("classificacao", classificacao.toString());
+        outputDatasetRun.put("qualidade", aiResponse.getQualidade());
+        outputDatasetRun.put("resumo executivo", aiResponse.getResumoExecutivo());
+        outputDatasetRun.put("parecer final", aiResponse.getParecerFinal());
+        outputDatasetRun.put("checklist", checklist.toString());
+        outputDatasetRun.put("recomendacoes", aiResponse.getRecomendacoes());
+        outputDatasetRun.put("pontos criticos", aiResponse.getPontosCriticos());
+
         langFuseClient.endTrace(traceId,
-                Map.of(
-                "qualidade", aiResponse.getQualidade(), "score", score, 
-                "classificacao", classificacao.toString(), "resumo executivo", aiResponse.getResumoExecutivo(), 
-                "checklist", checklist.toString(), "parecer final", aiResponse.getParecerFinal(), 
-                "recomendacoes", aiResponse.getRecomendacoes(), "pontos criticos", aiResponse.getPontosCriticos()),
+                outputDatasetRun,
                 List.of("dataset-run", devType.toString(), classificacao.toString()));
 
         return new DatasetRunItemResult(score, classificacao.toString(), aiResponse.getQualidade(),

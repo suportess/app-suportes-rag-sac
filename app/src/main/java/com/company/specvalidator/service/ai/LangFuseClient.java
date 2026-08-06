@@ -204,6 +204,30 @@ public class LangFuseClient {
         }
     }
 
+    /**
+     * Anexa um Score numerico a uma trace ja existente (ex: nota de consistencia calculada em
+     * Java a partir de N execucoes repetidas do mesmo item de dataset). Score na Langfuse e'
+     * sempre por trace/observacao — pra metricas de grupo (varias traces), chame uma vez por
+     * traceId do grupo.
+     */
+    public void recordScore(String traceId, String name, double value, String comment) {
+        if (!properties.isEnabled()) return;
+        try {
+            Map<String, Object> scoreBody = new HashMap<>();
+            scoreBody.put("id", UUID.randomUUID().toString());
+            scoreBody.put("traceId", traceId);
+            scoreBody.put("name", name);
+            scoreBody.put("value", value);
+            scoreBody.put("dataType", "NUMERIC");
+            scoreBody.put("environment", properties.getEnvironment());
+            if (comment != null) scoreBody.put("comment", comment);
+
+            ingest(List.of(event("score-create", scoreBody)));
+        } catch (Exception e) {
+            log.warn("LangFuse: erro ao registrar score '{}' na trace {} - {}", name, traceId, e.getMessage());
+        }
+    }
+
     private void ingest(List<Map<String, Object>> events) throws Exception {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
