@@ -235,7 +235,7 @@ Evolucao para Retrieval-Augmented Generation (RAG) utilizando pgvector:
 
 ### Limitacoes do MVP
 
-- Sem autenticacao/autorizacao (sem auth)
+- Sem autenticacao/autorizacao (sem auth).
 - Sem suporte a OCR (documentos escaneados nao sao processados)
 - Sem RAG (cada documento e validado isoladamente, sem contexto historico)
 - Processamento sincrono apenas (sem filas)
