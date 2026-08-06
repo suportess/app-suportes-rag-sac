@@ -47,12 +47,7 @@ public class PromptBuilderService {
         return tiposHabilitados != null && tiposHabilitados.contains(devType);
     }
 
-    /**
-     * Variaveis dinamicas do prompt (devType/criteriosValidacao/criteriosEspecificos/entrada),
-     * usadas pra compilar o template buscado na Langfuse (Prompt Management). Os dois primeiros
-     * blocos sao os mesmos usados por buildSystemPrompt no fallback hardcoded — se mudar a
-     * logica de montagem aqui, o fallback e o template remoto continuam consistentes entre si.
-     */
+    // Variaveis dinamicas para compilar o template buscado na Langfuse (Prompt Management).
     public Map<String, String> buildPromptVariables(String documentText, DevType devType) {
         return Map.of(
                 "devType", devType.displayName(),
@@ -127,6 +122,8 @@ public class PromptBuilderService {
                   Caso encontre alguma inconsistência, como por exemplo: a EF usa nomes diferentes pro mesmo campo/tabela/transacao, 
                   ou uma secao contradiz outra. Voce deve rebaixar a classificacao do(s) item(ns) afetado(s) pra Parcial 
                   ou Ausente — nao existe mais uma "nota de consistencia" separada, ela se reflete nos proprios itens.
+
+                  
                 </regras_obrigatorias>
 
                 <criterios_validacao>
@@ -145,32 +142,13 @@ public class PromptBuilderService {
 
                 </validacao_adicional_por_tipo_wricef>
 
-                <metodo_cot>
-                Antes de emitir a resposta final, use um bloco de raciocinio como SCRATCHPAD para pensar em voz alta e
-                chegar a um veredito consistente por item. Regras deste bloco:
-
-                1. Inicie com o marcador exato "RACIOCINIO [" em uma linha propria, escreva o raciocinio nas
-                   linhas seguintes e feche com "]" em uma linha propria.
-                2. Dentro do bloco, registre APENAS os itens com status Parcial ou Ausente; omita os que estao OK. Para
-                   cada um, escreva UMA LINHA no padrao:
-                   Item (<nome legivel>): <avaliacao curta baseada no documento> -> <Parcial | Ausente>
-                   Se todos os itens estiverem OK, escreva: Nenhum gap identificado.
-                   Encerre com uma linha final: Conclusao: <resumo do veredito em 1 frase>.
-                3. O bloco RACIOCINIO NAO sera armazenado, NAO sera exibido ao usuario final e NAO deve conter dados
-                   sensiveis alem do necessario. Ele existe SOMENTE para voce estruturar o pensamento antes do JSON.
-                4. Apos o "]" de fechamento, pule uma linha e retorne o JSON final descrito em <saida>. O JSON e a UNICA
-                   resposta oficial.
-                5. NAO inclua nenhum campo de raciocinio dentro do JSON (nada de "chainOfThought_Analysis", "reasoning",
-                   "raciocinio" etc.). O raciocinio fica exclusivamente FORA do JSON.
-                </metodo_cot>
-
                 <exemplos> 
-                Os exemplos abaixo mostram COMO o raciocinio deve fluir e a que veredito ele deve levar. Eles NAO mostram o JSON final propositalmente — o formato do JSON esta definido na secao <saida>.
+                Os exemplos abaixo mostram como avaliar a severidade dos gaps e chegar ao status final esperado. Eles NAO mostram o JSON final propositalmente — o formato do JSON esta definido na secao <saida>.
 
                 [EXEMPLO 1 - QUALIDADE BAIXA]
                 Input Document: "Precisamos criar um relatorio para ver dados de vendas de clientes. O programa vai ler a tabela de pedidos e mostrar na tela. Sera usada uma BADI para mudar o comportamento na hora de salvar o pedido."
 
-                RACIOCINIO [
+                ANALISE [
                 Item (objetivo_escopo): objetivo generico ("ver dados de vendas") sem escopo de empresa, periodo ou tipo de pedido -> Parcial
                 Item (casos_uso): nao descreve cenarios principais de uso do relatorio -> Ausente
                 Item (fluxos_alternativos): nao define comportamento para erro de leitura, sem dados ou falha de execucao -> Ausente
@@ -185,12 +163,12 @@ public class PromptBuilderService {
                 Item (massa_dados): nao informa massa minima para validacao funcional e tecnica -> Ausente
                 Conclusao: multiplos gaps criticos de detalhamento tecnico e testabilidade impedem iniciar desenvolvimento com seguranca.
                 ]
-                Veredito: qualidade = Baixa. Justificativa: faltam dependencias tecnicas nomeadas, regras executaveis e condicoes de teste, gerando alto risco para estimativa, desenvolvimento, teste e integracao.
+                Veredito: qualidade = Baixa; status final esperado = REPROVADO. Justificativa: faltam dependencias tecnicas nomeadas, regras executaveis e condicoes de teste, gerando alto risco para estimativa, desenvolvimento, teste e integracao, sem base segura para aprovacao.
 
                 [EXEMPLO 2 - QUALIDADE MEDIA]
                 Input Document: "Relatorio ALV para listar ordens de producao da tabela AFKO (filtros: AUFNR e GLGRP). Trigger: Executado via transacao ZPP_ORD. Tratamento de erros nao se aplica pois e apenas leitura. Cenarios de teste nao desenhados ainda. Responsavel: Mariana Costa."
 
-                RACIOCINIO [
+                ANALISE [
                 Item (objetivo_escopo): objetivo funcional descrito, mas sem delimitacao de unidades organizacionais e periodo padrao -> Parcial
                 Item (fluxos_alternativos): nao detalha comportamento para retorno vazio, timeout ou indisponibilidade de dados -> Parcial
                 Item (controle_acesso): nao define autorizacoes de execucao da transacao ZPP_ORD e acesso aos dados -> Ausente
@@ -200,24 +178,22 @@ public class PromptBuilderService {
                 Item (massa_dados): nao descreve massa de dados para validar filtros e performance -> Ausente
                 Conclusao: a base tecnica do relatorio esta consistente, mas faltam testes e controles operacionais para liberar sem ressalvas.
                 ]
-                Veredito: qualidade = Media. Justificativa: especificacao implementavel para inicio tecnico, porem com lacunas de teste, autorizacao e volume que aumentam risco em QA e produtizacao.
+                Veredito: qualidade = Media; status final esperado = ACEITAVEL (Aprovado com ressalvas). Justificativa: especificacao implementavel para inicio tecnico, porem com lacunas de teste, autorizacao e volume que exigem ajustes antes da liberacao sem ressalvas.
 
                 [EXEMPLO 3 - QUALIDADE ALTA]
                 Input Document: "Desenvolvimento de um programa de carga background (Job diario as 23h) para atualizar dados de parceiros na tabela BUT000 via BAPI_BUPA_CREATE_FROM_DATA. Regra: SE o parceiro ja existir (consultar BUT000-PARTNER), ENTAO ignora, SENAO cria. Erros gravados via log Application Log (SLG1) objeto ZPARTNER. Testes: 1. Inserir parceiro novo (Sucesso); 2. Inserir parceiro duplicado (Ignorado). Autorizacoes validam objeto B_BUPA_GRP. Responsavel: Carlos Lima (carlos@empresa.com)."
 
-                RACIOCINIO [
+                ANALISE [
                 Nenhum gap identificado.
                 Conclusao: documento completo e testavel, com regras, dependencias, logs, autorizacao e testes suficientes para execucao ponta a ponta.
                 ]
-                Veredito: qualidade = Alta. Justificativa: especificacao clara, executavel e com rastreabilidade adequada para desenvolvimento, testes, integracao e operacao.
+                Veredito: qualidade = Alta; status final esperado = APROVADO. Justificativa: especificacao clara, executavel e com rastreabilidade adequada para desenvolvimento, testes, integracao e operacao.
                 </exemplos>
 
                 <saida>
-                Estrutura de saida OBRIGATORIA, exatamente nesta ordem:
-                1. Bloco RACIOCINIO [ ... ] conforme <metodo_cot> (scratchpad, nao persistido).
-                2. Uma linha em branco.
-                3. UM UNICO objeto JSON valido, sem qualquer caractere de formatacao markdown (sem cercas de codigo nem
-                   indicador de linguagem). Escape aspas internas com barra invertida (\\").
+                Estrutura de saida OBRIGATORIA:
+                UM UNICO objeto JSON valido, sem qualquer caractere de formatacao markdown (sem cercas de codigo nem
+                indicador de linguagem). Escape aspas internas com barra invertida (\\").
 
                 Schema OBRIGATORIO do JSON (nao inclua nenhum outro campo, e NAO omita campos — use array vazio [] ou
                 string vazia quando nao aplicavel):
@@ -269,6 +245,7 @@ public class PromptBuilderService {
                 - Seja tecnico
                 - Nao suavize os problemas encontrados
                 - Priorize o impacto no desenvolvimento e operacao
+                - Relacione sempre a severidade dos gaps ao status final esperado: qualidade Alta -> APROVADO; qualidade Media -> ACEITAVEL (Aprovado com ressalvas); qualidade Baixa -> REPROVADO
                 </comportamento_esperado>
 
                 ATENCAO: o documento a ser analisado sera fornecido em uma mensagem separada (role "user"), dentro das
@@ -277,7 +254,7 @@ public class PromptBuilderService {
 
                 Assuma essa <persona>, siga as <regras_obrigatorias>, avalie o documento fornecido na mensagem do
                 usuario contra os <criterios_validacao> e a <validacao_adicional_por_tipo_wricef>. Utilize o
-                <metodo_cot> para estruturar seu raciocinio antes do veredito final. Assim que tiver um veredito, siga
+                <exemplos> para ajudar na analise e registrar o  veredito final. Assim que tiver um veredito, siga
                 estritamente a estrutura de <saida> para finalizar o processo.
                 """.formatted(devType.displayName(), criteriosValidacao, typeSpecificCriteria);
     }

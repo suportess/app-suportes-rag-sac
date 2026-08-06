@@ -104,7 +104,7 @@ public class ValidationAgentService {
         log.info("Iniciando validacao do documento id={}", documentId);
 
         String traceId = UUID.randomUUID().toString();
-        langFuseClient.startTrace(traceId, "document-validation", Map.of("documentId", documentId.toString()));
+        langFuseClient.startTrace(traceId, "document-validation", "doc-" + documentId.toString(), Map.of("documentId", documentId.toString()));
 
         String extractionSpanId = langFuseClient.startSpan(traceId, null, "text-extraction",
                 Map.of("documentId", documentId,
@@ -236,10 +236,16 @@ public class ValidationAgentService {
         ValidationStatus classificacao = scoreCalculator.calculateClassificacao(score);
 
         langFuseClient.endTrace(traceId,
-                Map.of("qualidade", aiResponse.getQualidade(), "score", score, "classificacao", classificacao.toString()),
+                Map.of(
+                "qualidade", aiResponse.getQualidade(), "score", score, 
+                "classificacao", classificacao.toString(), "resumo executivo", aiResponse.getResumoExecutivo(), 
+                "checklist", checklist.toString(), "parecer final", aiResponse.getParecerFinal(), 
+                "recomendacoes", aiResponse.getRecomendacoes(), "pontos criticos", aiResponse.getPontosCriticos()),
                 List.of("dataset-run", devType.toString(), classificacao.toString()));
 
-        return new DatasetRunItemResult(score, classificacao.toString(), aiResponse.getQualidade());
+        return new DatasetRunItemResult(score, classificacao.toString(), aiResponse.getQualidade(),
+            aiResponse.getResumoExecutivo(), checklist.toString(), aiResponse.getParecerFinal(),
+            aiResponse.getRecomendacoes(), aiResponse.getPontosCriticos());
     }
 
     /**

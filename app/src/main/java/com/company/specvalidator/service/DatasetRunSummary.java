@@ -1,5 +1,8 @@
 package com.company.specvalidator.service;
 
+import com.company.specvalidator.dto.ai.PontoCritico;
+
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -12,6 +15,11 @@ public record DatasetRunSummary(
         Integer score,
         String classificacao,
         String qualidade,
+        String resumoExecutivo,
+        String checklist,
+        String parecerFinal,
+        List<String> recomendacoes,
+        List<PontoCritico> pontosCriticos,
         Map<String, Object> expectedOutput,
         String traceId
 ) {

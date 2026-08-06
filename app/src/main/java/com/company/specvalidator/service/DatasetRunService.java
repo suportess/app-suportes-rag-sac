@@ -41,8 +41,11 @@ public class DatasetRunService {
                         item.input(), traceId, sessionId, label);
                 langFuseDatasetClient.linkRunItem(runName, item.id(), traceId);
                 results.add(new DatasetRunSummary(
-                        item.id(), label, result.score(), result.classificacao(), result.qualidade(),
-                        item.expectedOutput(), traceId));
+                        item.id(), label, result.score(), 
+                        result.classificacao(), result.qualidade(), 
+                        result.resumoExecutivo(), result.checklist(), 
+                        result.parecerFinal(), result.recomendacoes(), 
+                        result.pontosCriticos(), item.expectedOutput(), traceId));
             } catch (Exception e) {
                 log.error("Falha ao rodar item de dataset '{}' ({})", item.id(), label, e);
             }
