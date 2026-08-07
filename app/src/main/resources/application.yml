@@ -94,5 +94,3 @@ langfuse:
   secret-key: ${LANGFUSE_SECRET_KEY:}
   environment: ${LANGFUSE_ENVIRONMENT:local}
   prompt-name: ${LANGFUSE_PROMPT_NAME:promptBuilderService}
->>>>>>> Stashed changes
-  prompt-name: ${LANGFUSE_PROMPT_NAME:promptBuilderService}
