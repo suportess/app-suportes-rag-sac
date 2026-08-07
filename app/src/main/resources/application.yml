@@ -92,5 +92,7 @@ langfuse:
   host: ${LANGFUSE_HOST:https://cloud.langfuse.com}
   public-key: ${LANGFUSE_PUBLIC_KEY:}
   secret-key: ${LANGFUSE_SECRET_KEY:}
-  environment: ${LANGFUSE_ENVIRONMENT:production}
+  environment: ${LANGFUSE_ENVIRONMENT:local}
+  prompt-name: ${LANGFUSE_PROMPT_NAME:promptBuilderService}
+>>>>>>> Stashed changes
   prompt-name: ${LANGFUSE_PROMPT_NAME:promptBuilderService}

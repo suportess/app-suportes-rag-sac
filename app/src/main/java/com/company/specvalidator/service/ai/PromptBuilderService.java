@@ -458,7 +458,7 @@ public class PromptBuilderService {
                     """;
             case FORMS -> """
                     === CRITERIOS ESPECIFICOS: FORM (SMARTFORM/SAPSCRIPT/ADOBE) ===
-                    - Layout completo do formulario descrito?
+                    - Layout completo do formulário (descrito o tipo, tamanho, nome, cor da fonte e imagens) está descrito em cada seção? 
                     - Cabecalho, detalhe e rodape definidos?
                     - Paginacao especificada?
                     - Condicoes/fluxo de impressao definidos?
@@ -467,6 +467,7 @@ public class PromptBuilderService {
             case ENHANCEMENT -> """
                     === CRITERIOS ESPECIFICOS: ENHANCEMENT/EXIT/BADI ===
                     - Transacoes afetadas identificadas?
+                    - O cenário onde o enhancement será executado foi identificado? 
                     - Condicoes de execucao (quando o enhancement dispara) definidas?
                     - Eventos do enhancement especificados?
                     - Campos impactados pelo enhancement listados?
@@ -475,7 +476,6 @@ public class PromptBuilderService {
                     """;
             case TELA_FIORI -> """
                     === CRITERIOS ESPECIFICOS: TELA/FIORI ===
-                    - Layout da tela descrito?
                     - Campos obrigatorios da tela definidos?
                     - Ajuda de pesquisa (F4) especificada onde necessario?
                     - Navegacao entre telas/etapas definida?
@@ -509,6 +509,7 @@ public class PromptBuilderService {
                     - Indices secundarios necessarios para performance?
                     - Classe de entrega (A=customizing, C=client-dep, G=master, L=temporaria)?
                     - Manutencao via SM30 necessaria? Grupo de autorizacao?
+                    - Volumetria da tabela está decrita? 
 
                     """;
             case UNKNOWN -> "";
