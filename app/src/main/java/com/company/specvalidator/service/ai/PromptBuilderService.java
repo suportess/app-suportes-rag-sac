@@ -99,7 +99,7 @@ public class PromptBuilderService {
                   - OK = a informacao esta presente e clara o suficiente para o desenvolvedor iniciar a implementacao,
                     MESMO que existam detalhes adicionais que poderiam ser refinados depois — NAO exija perfeicao ou
                     exaustao de detalhes para classificar como OK
-                  - Parcial = a informacao existe, mas e ambigua, contraditoria ou insuficiente a ponto de gerar duvida
+                  - Parcial = a informacao existe, mas e contraditoria ou insuficiente a ponto de gerar duvida
                     REAL sobre como implementar ou testar (nao classifique como Parcial só porque "poderia ter mais
                     detalhe" quando o que ja esta escrito e suficiente para prosseguir)
                   - Ausente = informacao totalmente inexistente dentro do documento
@@ -280,12 +280,18 @@ public class PromptBuilderService {
         Map<ChecklistItemKey, String> m = new LinkedHashMap<>();
         m.put(ChecklistItemKey.DESCRICAO_PROCESSO, """
                 Descricao do processo (chave: descricao_processo)
-                  Como avaliar: REGRA OBJETIVA — se a EF descrever claramente o cenario atual (o que acontece/comportamento hoje) E o cenario futuro (o que deve mudar apos o desenvolvimento), classifique como OK, mesmo que sejam poucas frases e sem mapeamento formal de atores, eventos ou etapas numeradas. Isso e suficiente para desenvolvimentos pontuais (enhancements, ajustes, correcoes). NAO rebaixe para Parcial só porque "falta mais detalhamento operacional" quando o que muda ja esta claro — essa exigencia extra de formalismo so se aplica a processos de negocio complexos (workflows multi-etapas, integracoes entre varias areas), nao a ajustes pontuais. Parcial apenas quando a EF nao deixar claro o que muda (descricao vaga ou generica); Ausente quando nao houver nenhum contexto do que e feito hoje nem do que deve mudar.
+                  Como avaliar: REGRA OBJETIVA - verifique se a EF descreve de forma compreensivel o cenario atual (como o processo funciona hoje) e o cenario futuro (o que muda apos o desenvolvimento). Nao exija formalismo excessivo para ajustes pontuais; use o nivel de detalhe compativel com o porte da mudanca.
+                  Classifique como OK quando estiver claro o que acontece hoje e o que deve passar a acontecer depois da implementacao, mesmo que em poucas frases, desde que a mudanca de processo ou comportamento esteja objetiva e executavel.
+                  Classifique como Parcial quando houver contexto do processo, mas a descricao do estado atual ou futuro estiver vaga, generica ou insuficiente para entender exatamente o que muda.
+                  Classifique como Ausente quando nao houver descricao utilizavel do processo atual nem da mudanca esperada apos o desenvolvimento.
                   Exemplo (processo complexo): Processo de criacao de pedido de venda iniciado pela area comercial, validado por credito, faturado no SD e integrado ao financeiro apos emissao da nota.
                   Exemplo (ajuste pontual — classifique como OK): Hoje o campo BSARK esta bloqueado para edicao na transacao VA02 para pedidos do Salesforce; apos o ajuste, a edicao deve ser permitida quando o pedido atender as condicoes de negocio definidas.""");
         m.put(ChecklistItemKey.OBJETIVO_ESCOPO, """
                 Objetivo e escopo (chave: objetivo_escopo)
-                  Como avaliar: REGRA OBJETIVA — se a EF disser claramente o objetivo do desenvolvimento (o que deve ser construido/ajustado) E delimitar o escopo de alguma forma verificavel, classifique como OK. A delimitacao de escopo pode vir tanto como uma lista explicita de "fora do escopo" quanto como criterios de inclusao especificos (ex: "aplica-se apenas para organizacao de vendas X e tipos de pedido Y") — criterios de inclusao especificos JA delimitam o escopo por definicao, mesmo sem mencionar exclusoes explicitamente. NAO rebaixe para Parcial só por nao existir uma secao formal de "fora do escopo" quando os criterios de inclusao ja deixam claro o que esta dentro. Parcial apenas quando o objetivo existir mas NAO houver nenhuma forma de delimitacao (nem inclusao nem exclusao, nem modulo/transacao definidos); Ausente quando nao disser o que deve ser construido.
+                  Como avaliar: REGRA OBJETIVA - confirme se a EF deixa claro o objetivo do desenvolvimento (o que deve ser criado, alterado ou corrigido) e se delimita o escopo por algum criterio verificavel, como inclusoes, exclusoes, modulo, transacao, empresa, organizacao ou tipos de documento afetados.
+                  Classifique como OK quando o objetivo estiver claro e houver delimitacao objetiva do que esta dentro do escopo, inclusive quando essa delimitacao vier apenas por criterios de inclusao especificos.
+                  Classifique como Parcial quando o objetivo existir, mas o escopo nao estiver suficientemente delimitado, gerando duvida real sobre abrangencia, fronteiras da entrega ou cenarios cobertos.
+                  Classifique como Ausente quando nao estiver claro o que deve ser construido, ajustado ou entregue.
                   Exemplo: Criar relatorio ALV no modulo MM para acompanhar pedidos de compra em aberto por centro e fornecedor; fora do escopo alteracao no processo de aprovacao.
                   Exemplo (delimitacao por inclusao — classifique como OK): Permitir edicao dos campos X e Y na transacao Z apenas para organizacao de vendas 01BR e tipos de pedido ZO12/ZO41; demais organizacoes e tipos continuam bloqueados.""");
         m.put(ChecklistItemKey.CASOS_USO, """
@@ -304,43 +310,73 @@ public class PromptBuilderService {
                   Exemplo: Se nao houver pedidos para o filtro informado, exibir mensagem informativa; se a RFC do sistema externo falhar, registrar erro e permitir reprocessamento.""");
         m.put(ChecklistItemKey.REGRAS_NEGOCIO, """
                 Regras de negocio (chave: regras_negocio)
-                  Como avaliar: procure regras objetivas no formato condicao/acao, formulas, criterios de selecao, validacoes, excecoes e prioridades. Parcial quando as regras forem textuais, ambiguas ou sem parametros; Ausente quando nao houver decisao de negocio documentada.
+                  Como avaliar: REGRA OBJETIVA - procure regras executaveis no formato condicao/acao, formulas, criterios de selecao, priorizacao, validacoes, excecoes e qualquer decisao de negocio que altere o comportamento funcional do desenvolvimento.
+                  Classifique como OK quando houver regras claras e aplicaveis, com condicoes e resultados esperados suficientes para orientar implementacao e teste sem depender de interpretacao subjetiva.
+                  Classifique como Parcial quando existirem regras, mas elas estiverem ambiguas, textuais demais, sem parametros, sem criterio de decisao claro ou sem deixar evidente quando devem ser aplicadas.
+                  Classifique como Ausente quando nao houver nenhuma regra de negocio documentada de forma utilizavel.
                   Exemplo: SE o pedido estiver bloqueado por credito, ENTAO nao enviar para faturamento; SE o valor for maior que R$ 50.000, exigir aprovacao do gerente regional.""");
         m.put(ChecklistItemKey.TRATAMENTO_EXCECOES, """
                 Tratamento de excecoes (chave: tratamento_excecoes)
-                  Como avaliar: verifique se a EF define como tratar erros funcionais, erros tecnicos, falhas de gravacao, indisponibilidade de dependencia, registros rejeitados e retomada do processamento. Parcial quando listar erros sem acao esperada; Ausente quando nao houver tratamento definido.
+                  Como avaliar: REGRA OBJETIVA - verifique se a EF define como tratar erros funcionais e tecnicos, incluindo falha de gravacao, indisponibilidade de dependencia, registros rejeitados, interrupcao de processamento e retomada apos erro.
+                  Classifique como OK quando houver tratamento claro para as excecoes relevantes, informando condicao, acao esperada e efeito operacional sobre continuidade, bloqueio, rejeicao ou recuperacao do processo.
+                  Classifique como Parcial quando a EF citar erros ou excecoes, mas sem definir acao esperada, criterio de continuidade/parada ou forma de tratar os registros impactados.
+                  Classifique como Ausente quando nao houver definicao utilizavel de tratamento de excecoes.
                   Exemplo: Para material inexistente, rejeitar o registro, gravar mensagem no log com MATNR e linha do arquivo, continuar os demais registros e disponibilizar relatorio de rejeicoes.""");
         m.put(ChecklistItemKey.INPUTS_OUTPUTS, """
                 Inputs e outputs (chave: inputs_outputs)
-                  Como avaliar: confirme se entradas e saidas estao nomeadas, com origem/destino, obrigatoriedade, formato, meio de execucao e exemplos. Parcial quando houver apenas descricao funcional sem estrutura; Ausente quando nao for possivel saber o que entra e o que sai.
+                  Como avaliar: REGRA OBJETIVA - confirme se entradas e saidas estao identificadas de forma utilizavel, com origem ou destino, obrigatoriedade, formato, meio de execucao, estrutura minima e resultado esperado do processamento.
+                  Classifique como OK quando for possivel saber claramente o que entra, de onde vem, como deve ser fornecido e o que sai, para onde vai ou que efeito funcional gera.
+                  Classifique como Parcial quando houver descricao de entradas ou saidas, mas faltar estrutura minima, origem/destino, formato ou clareza suficiente para implementacao e teste.
+                  Classifique como Ausente quando nao for possivel identificar de forma objetiva o que entra e o que sai do processo.
                   Exemplo: Entrada: arquivo CSV recebido via SFTP com fornecedor, material e quantidade. Saida: ordem de compra criada no SAP e arquivo de retorno com status por linha.""");
         m.put(ChecklistItemKey.CAMPOS_ESTRUTURA_DADOS, """
                 Campos e estrutura de dados — origem, tipo, tamanho, formato, dominio/range, obrigatoriedade (chave: campos_estrutura_dados)
-                  Como avaliar: procure lista de campos com nome funcional e tecnico, tabela/estrutura de origem, tipo SAP, tamanho, formato, dominio/range, obrigatoriedade, regra de preenchimento e exemplo de valor. Parcial quando houver campos sem metadados; Ausente quando citar dados de forma generica.
+                  Como avaliar: REGRA OBJETIVA - procure lista de campos com nome funcional e tecnico, origem em tabela/estrutura, tipo SAP, tamanho, formato, dominio ou range, obrigatoriedade, regra de preenchimento e exemplo de valor quando necessario.
+                  Classifique como OK quando os campos relevantes estiverem especificados com metadados suficientes para implementacao tecnica, validacao e montagem da estrutura de dados sem depender de inferencia adicional.
+                  Classifique como Parcial quando houver campos mapeados, mas faltarem metadados importantes como tipo, tamanho, origem, formato, obrigatoriedade ou regra de preenchimento.
+                  Classifique como Ausente quando os dados forem citados apenas de forma generica, sem detalhamento utilizavel da estrutura.
                   Exemplo: MATNR - origem MARA-MATNR, CHAR 18, obrigatorio, sem zeros a esquerda na entrada; BUDAT - DATS 8, formato AAAAMMDD, obrigatorio.""");
         m.put(ChecklistItemKey.DEPENDENCIAS, """
                 Dependencias — integracoes, tabelas SAP, programas predecessores, servicos, arquivos, sistemas externos (chave: dependencias)
-                  Como avaliar: verifique nomes tecnicos de tabelas, BAPIs, BADIs, RFCs, APIs, jobs, programas, transacoes, filas, topicos, arquivos, diretorios e sistemas externos. Parcial quando dependencias forem citadas sem nome tecnico; Ausente quando nao houver mapa de dependencias.
+                  Como avaliar: REGRA OBJETIVA - verifique se a EF identifica as dependencias tecnicas e funcionais relevantes, como tabelas SAP, BAPIs, BADIs, RFCs, APIs, jobs, programas, transacoes, arquivos, diretorios, filas, topicos e sistemas externos.
+                  Classifique como OK quando as dependencias necessarias para construir, integrar ou operar a solucao estiverem nomeadas tecnicamente e relacionadas ao comportamento esperado do desenvolvimento.
+                  Classifique como Parcial quando houver referencia a dependencias, mas sem nome tecnico exato, sem papel claro no processo ou sem indicar pontos criticos de integracao.
+                  Classifique como Ausente quando nao houver mapa de dependencias utilizavel para orientar o desenho tecnico e a integracao.
                   Exemplo: Ler VBAK/VBAP, chamar BAPI_SALESORDER_CHANGE, consumir API REST do CRM, receber arquivo em /interfaces/in/pedidos e executar apos job ZSD_ATUALIZA_STATUS.""");
         m.put(ChecklistItemKey.CONTROLE_ACESSO, """
                 Controle de acesso / autorizacoes (chave: controle_acesso)
-                  Como avaliar: busque perfis, papeis, objetos de autorizacao, transacoes liberadas, segregacao por area/empresa, restricoes de dados e comportamento quando o usuario nao tiver permissao. Parcial quando mencionar apenas "acesso restrito"; Ausente quando nao tratar autorizacao.
+                  Como avaliar: REGRA OBJETIVA - busque definicao de perfis, papeis, objetos de autorizacao, transacoes liberadas, segregacao por area/empresa, restricoes por dado e comportamento esperado quando o usuario nao tiver permissao.
+                  Classifique como OK quando a EF indicar de forma objetiva quem pode executar ou acessar a funcionalidade e quais validacoes de autorizacao devem ser aplicadas sobre execucao ou dados.
+                  Classifique como Parcial quando houver indicacao generica de restricao de acesso, mas sem detalhar perfis, objetos de autorizacao, regra de bloqueio ou abrangencia do controle.
+                  Classifique como Ausente quando nao houver tratamento utilizavel de autorizacao ou controle de acesso.
                   Exemplo: Usuarios com papel ZMM_COMPRADOR podem executar ZMM_PED_ABERTO; validar objeto M_BEST_WRK por centro e bloquear visualizacao de centros nao autorizados.""");
         m.put(ChecklistItemKey.VOLUME_FREQUENCIA, """
                 Volume de dados e frequencia de execucao (chave: volume_frequencia)
-                  Como avaliar: procure numeros concretos de volume e frequencia: registros por execucao, execucoes por hora/dia/mes, tamanho maximo de lote, janela de processamento, crescimento esperado e tempo limite aceitavel. Parcial quando houver apenas "alto volume" ou "diario" sem quantidade; Ausente quando nao houver dados para dimensionar performance.
+                  Como avaliar: REGRA OBJETIVA - procure numeros concretos de volume e frequencia, como registros por execucao, execucoes por hora/dia/mes, tamanho maximo de lote, janela de processamento, crescimento esperado e tempo limite aceitavel.
+                  Classifique como OK quando houver volumetria e frequencia suficientes para dimensionar performance, capacidade operacional e impacto tecnico do processamento.
+                  Classifique como Parcial quando existir apenas indicacao superficial de volume ou frequencia, sem quantidade concreta, sem janela ou sem informacao suficiente para avaliar capacidade e tempo de execucao.
+                  Classifique como Ausente quando nao houver dados utilizaveis para dimensionar performance ou operacao.
                   Exemplo: Execucao online via Fiori processando cerca de 50 registros por clique; ou job background diario as 23h processando ate 100.000 registros mensais em janela maxima de 2 horas.""");
         m.put(ChecklistItemKey.LOGS_REPROCESSAMENTO, """
                 Logs, rastreabilidade e reprocessamento/recuperacao (chave: logs_reprocessamento)
-                  Como avaliar: verifique se define onde registrar logs, quais campos rastrear, nivel de detalhe, identificador de correlacao, consulta operacional, retencao, reprocessamento e recuperacao em falha. Parcial quando houver log sem reprocessamento ou sem dados rastreaveis; Ausente quando nao houver estrategia operacional.
+                  Como avaliar: REGRA OBJETIVA - verifique se a EF define onde registrar logs, quais dados rastrear, nivel de detalhe, identificador de correlacao, forma de consulta operacional, retencao, reprocessamento e recuperacao em caso de falha.
+                  Classifique como OK quando houver estrategia operacional clara de rastreabilidade e recuperacao, permitindo identificar execucoes, localizar erros e reprocessar ou recuperar o que falhou.
+                  Classifique como Parcial quando existir log ou rastreabilidade, mas sem dados suficientes para operacao, sem criterio de consulta, ou sem procedimento claro de reprocessamento/recuperacao.
+                  Classifique como Ausente quando nao houver estrategia utilizavel de log, rastreabilidade ou reprocessamento.
                   Exemplo: Gravar Application Log SLG1 objeto ZPEDIDOS com ID do lote, usuario, data/hora, status por item e opcao de reprocessar apenas registros com erro.""");
         m.put(ChecklistItemKey.MENSAGENS_VALIDACOES, """
                 Mensagens e validacoes (chave: mensagens_validacoes)
-                  Como avaliar: procure validacoes de campos, regras de obrigatoriedade, dominios permitidos, mensagens de erro/sucesso/alerta, codigo ou texto da mensagem e momento de exibicao. Parcial quando validacoes existirem sem mensagem clara; Ausente quando nao houver validacoes documentadas.
+                  Como avaliar: REGRA OBJETIVA - procure validacoes de campos, regras de obrigatoriedade, dominios permitidos, mensagens de erro, sucesso ou alerta, codigo ou texto da mensagem e momento em que devem ser exibidas.
+                  Classifique como OK quando as validacoes relevantes estiverem definidas com criterio objetivo e mensagem associada suficientemente clara para orientar implementacao e teste funcional.
+                  Classifique como Parcial quando houver validacoes ou mensagens, mas sem vinculo claro entre regra e retorno esperado, ou sem texto/codigo suficiente para orientar o comportamento do sistema.
+                  Classifique como Ausente quando nao houver validacoes documentadas de forma utilizavel.
                   Exemplo: Validar que centro e obrigatorio; se vazio, exibir "Centro deve ser informado". Validar fornecedor ativo; se bloqueado, retornar mensagem de erro com codigo ZMM001.""");
         m.put(ChecklistItemKey.CONDICOES_TESTE, """
                 Condicoes de teste (chave: condicoes_teste)
-                  Como avaliar: identifique cenarios de teste positivos, negativos, alternativos, integrados, volumetria/performance, criterios de aceite e resultado esperado por cenario. Parcial quando houver lista incompleta sem resultado esperado; Ausente quando nao houver testes.
+                  Como avaliar: REGRA OBJETIVA - identifique cenarios de teste positivos, negativos, alternativos, integrados e de volumetria/performance, sempre observando criterio de aceite e resultado esperado por cenario.
+                  Classifique como OK quando houver conjunto de testes utilizavel para validar o desenvolvimento, cobrindo os principais cenarios com resultado esperado ou criterio de aceite claro.
+                  Classifique como Parcial quando existirem cenarios de teste, mas a cobertura estiver incompleta, sem resultado esperado, sem criterio de aceite ou limitada ao fluxo feliz.
+                  Classifique como Ausente quando nao houver condicoes de teste definidas de forma utilizavel.
                   Exemplo: Teste 1: criar pedido valido e verificar status sucesso. Teste 2: fornecedor bloqueado deve rejeitar item. Teste 3: arquivo com 10.000 linhas deve processar dentro da janela acordada.""");
         m.put(ChecklistItemKey.MASSA_DADOS, """
                 Massa de dados (chave: massa_dados)
@@ -458,7 +494,7 @@ public class PromptBuilderService {
                     """;
             case FORMS -> """
                     === CRITERIOS ESPECIFICOS: FORM (SMARTFORM/SAPSCRIPT/ADOBE) ===
-                    - Layout completo do formulário (descrito o tipo, tamanho, nome, cor da fonte e imagens) está descrito em cada seção? 
+                    - Layout completo do formulário (descrito tipo, tamanho, nome, cor da fonte e imagens. Sendo tipo, tamanho e nome a prioridade do formulario) está descrito em cada seção? 
                     - Cabecalho, detalhe e rodape definidos?
                     - Paginacao especificada?
                     - Condicoes/fluxo de impressao definidos?
