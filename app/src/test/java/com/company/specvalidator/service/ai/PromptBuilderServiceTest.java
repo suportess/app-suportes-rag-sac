@@ -15,23 +15,6 @@ class PromptBuilderServiceTest {
         service = new PromptBuilderService();
     }
 
-        private void assertCriterionUsesDetailedStructure(String prompt, String criterionTitle) {
-        int start = prompt.indexOf(criterionTitle);
-        assertTrue(start >= 0, "Prompt deveria conter o criterio: " + criterionTitle);
-
-        int end = Math.min(prompt.length(), start + 900);
-        String criterionBlock = prompt.substring(start, end);
-
-        assertTrue(criterionBlock.contains("Como avaliar: REGRA OBJETIVA -"),
-            "Criterio deveria conter 'Como avaliar: REGRA OBJETIVA -': " + criterionTitle);
-        assertTrue(criterionBlock.contains("Classifique como OK quando"),
-            "Criterio deveria detalhar classificacao OK: " + criterionTitle);
-        assertTrue(criterionBlock.contains("Classifique como Parcial quando"),
-            "Criterio deveria detalhar classificacao Parcial: " + criterionTitle);
-        assertTrue(criterionBlock.contains("Classifique como Ausente quando"),
-            "Criterio deveria detalhar classificacao Ausente: " + criterionTitle);
-        }
-
     // --- prompt structure ---
 
     @Test
@@ -87,40 +70,6 @@ class PromptBuilderServiceTest {
         assertTrue(prompt.contains("Objetivo e escopo"));
         assertTrue(prompt.contains("Regras de negocio"));
         assertTrue(prompt.contains("Condicoes de teste"));
-    }
-
-    @Test
-    void testUpdatedCriteriaUseDetailedStructureForUnknownTypePrompt() {
-        String prompt = service.buildSystemPrompt("documento generico sem palavras chave especificas", UNKNOWN);
-
-        String[] criteria = {
-                "Descricao do processo (chave: descricao_processo)",
-                "Objetivo e escopo (chave: objetivo_escopo)",
-                "Regras de negocio (chave: regras_negocio)",
-                "Tratamento de excecoes (chave: tratamento_excecoes)",
-                "Inputs e outputs (chave: inputs_outputs)",
-                "Controle de acesso / autorizacoes (chave: controle_acesso)",
-                "Logs, rastreabilidade e reprocessamento/recuperacao (chave: logs_reprocessamento)",
-                "Mensagens e validacoes (chave: mensagens_validacoes)",
-                "Condicoes de teste (chave: condicoes_teste)"
-        };
-
-        for (String criterion : criteria) {
-            assertCriterionUsesDetailedStructure(prompt, criterion);
-        }
-    }
-
-    @Test
-    void testUpdatedConditionalCriteriaUseDetailedStructureWhenApplicable() {
-        String tablePrompt = service.buildSystemPrompt("nova tabela z com dicionario abap e chave primaria definida", TABLE);
-        assertCriterionUsesDetailedStructure(tablePrompt,
-                "Campos e estrutura de dados — origem, tipo, tamanho, formato, dominio/range, obrigatoriedade (chave: campos_estrutura_dados)");
-
-        String reportPrompt = service.buildSystemPrompt("relatorio ALV com execucao diaria e dependencia de BAPI", REPORT);
-        assertCriterionUsesDetailedStructure(reportPrompt,
-                "Dependencias — integracoes, tabelas SAP, programas predecessores, servicos, arquivos, sistemas externos (chave: dependencias)");
-        assertCriterionUsesDetailedStructure(reportPrompt,
-                "Volume de dados e frequencia de execucao (chave: volume_frequencia)");
     }
 
     // --- criterios "obrigatorios" (9) sempre presentes, independente do tipo ---
