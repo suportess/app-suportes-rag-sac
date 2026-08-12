@@ -26,13 +26,16 @@ public class DatasetRunService {
     private final LangFuseDatasetClient langFuseDatasetClient;
     private final ValidationAgentService validationAgentService;
     private final LangFuseClient langFuseClient;
+    private final BaselineComparisonService baselineComparisonService;
 
     public DatasetRunService(LangFuseDatasetClient langFuseDatasetClient,
                              ValidationAgentService validationAgentService,
-                             LangFuseClient langFuseClient) {
+                             LangFuseClient langFuseClient,
+                             BaselineComparisonService baselineComparisonService) {
         this.langFuseDatasetClient = langFuseDatasetClient;
         this.validationAgentService = validationAgentService;
         this.langFuseClient = langFuseClient;
+        this.baselineComparisonService = baselineComparisonService;
     }
 
     public DatasetRunResult runDataset(String datasetName, String runName) {
@@ -59,7 +62,8 @@ public class DatasetRunService {
         }
 
         List<ConsistencyResult> consistency = computeAndSendConsistency(results);
-        return new DatasetRunResult(results, consistency);
+        RegressionReport regression = baselineComparisonService.compare(datasetName, runName, results).orElse(null);
+        return new DatasetRunResult(results, consistency, regression);
     }
 
     /**

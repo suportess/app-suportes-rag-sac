@@ -1,5 +1,7 @@
 package com.company.specvalidator.controller;
 
+import com.company.specvalidator.entity.DatasetBaselineEntity;
+import com.company.specvalidator.service.BaselineComparisonService;
 import com.company.specvalidator.service.DatasetRunResult;
 import com.company.specvalidator.service.DatasetRunService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -20,9 +22,12 @@ import java.time.Instant;
 public class DatasetTestController {
 
     private final DatasetRunService datasetRunService;
+    private final BaselineComparisonService baselineComparisonService;
 
-    public DatasetTestController(DatasetRunService datasetRunService) {
+    public DatasetTestController(DatasetRunService datasetRunService,
+                                 BaselineComparisonService baselineComparisonService) {
         this.datasetRunService = datasetRunService;
+        this.baselineComparisonService = baselineComparisonService;
     }
 
     @Operation(summary = "Roda todos os itens de um dataset da Langfuse pelo pipeline real e registra o resultado como Dataset Run")
@@ -32,5 +37,13 @@ public class DatasetTestController {
         String actualRunName = (runName == null || runName.isBlank()) ? "run-" + Instant.now() : runName;
         log.info("Rodando dataset '{}' como run '{}'", datasetName, actualRunName);
         return datasetRunService.runDataset(datasetName, actualRunName);
+    }
+
+    @Operation(summary = "Marca/promove um run ja executado como baseline de comparacao pro dataset — runs futuros sao comparados contra ele ate alguem promover um novo baseline")
+    @PostMapping("/{datasetName}/baseline")
+    public DatasetBaselineEntity markBaseline(@PathVariable String datasetName,
+                                              @RequestParam String runName) {
+        log.info("Promovendo run '{}' a baseline do dataset '{}'", runName, datasetName);
+        return baselineComparisonService.markBaseline(datasetName, runName);
     }
 }

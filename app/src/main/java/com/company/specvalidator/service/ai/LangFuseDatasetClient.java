@@ -19,6 +19,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Busca itens de Datasets da Langfuse e registra a execucao de cada item (Dataset Run Item) —
@@ -93,6 +94,102 @@ public class LangFuseDatasetClient {
             );
         } catch (Exception e) {
             log.warn("LangFuse: falha ao linkar item '{}' na run '{}' - {}", datasetItemId, runName, e.getMessage());
+        }
+    }
+
+    public Optional<String> fetchDatasetId(String datasetName) {
+        if (!properties.isEnabled()) return Optional.empty();
+        try {
+            String url = properties.getHost() + "/api/public/datasets/" + datasetName;
+            ResponseEntity<String> response = restTemplate.exchange(
+                    url, HttpMethod.GET, new HttpEntity<>(authHeaders()), String.class);
+            JsonNode root = objectMapper.readTree(response.getBody());
+            String id = root.path("id").asText(null);
+            return Optional.ofNullable(id);
+        } catch (Exception e) {
+            log.warn("LangFuse: falha ao buscar id do dataset '{}' - {}", datasetName, e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Busca score/classificacao final de cada item de um run ja executado, lendo o output da
+     * trace linkada. Usado pra comparar um run atual contra um run baseline (regressao entre
+     * versoes de prompt) — nao reprocessa nada, so le o que ja foi gravado na Langfuse.
+     */
+    public List<RunItemScore> fetchRunResults(String datasetId, String runName) {
+        if (!properties.isEnabled()) return List.of();
+        List<RunItemScore> results = new ArrayList<>();
+        try {
+            String url = UriComponentsBuilder
+                    .fromHttpUrl(properties.getHost() + "/api/public/dataset-run-items")
+                    .queryParam("datasetId", datasetId)
+                    .queryParam("runName", runName)
+                    .queryParam("limit", 100)
+                    .toUriString();
+
+            ResponseEntity<String> response = restTemplate.exchange(
+                    url, HttpMethod.GET, new HttpEntity<>(authHeaders()), String.class);
+            JsonNode root = objectMapper.readTree(response.getBody());
+
+            for (JsonNode item : root.path("data")) {
+                String datasetItemId = item.path("datasetItemId").asText();
+                String traceId = item.path("traceId").asText();
+                RunItemScore scoreEntry = fetchTraceScore(traceId, datasetItemId);
+                results.add(scoreEntry);
+                try {
+                    Thread.sleep(400);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        } catch (Exception e) {
+            log.warn("LangFuse: falha ao buscar resultados do run '{}' - {}", runName, e.getMessage());
+        }
+        return results;
+    }
+
+    private RunItemScore fetchTraceScore(String traceId, String datasetItemId) {
+        try {
+            String url = properties.getHost() + "/api/public/traces/" + traceId;
+            ResponseEntity<String> response = restTemplate.exchange(
+                    url, HttpMethod.GET, new HttpEntity<>(authHeaders()), String.class);
+            JsonNode root = objectMapper.readTree(response.getBody());
+            JsonNode output = root.path("output");
+            Integer score = output.hasNonNull("score") ? output.path("score").asInt() : null;
+            String classificacao = output.hasNonNull("classificacao") ? output.path("classificacao").asText() : null;
+            return new RunItemScore(datasetItemId, traceId, score, classificacao);
+        } catch (Exception e) {
+            log.warn("LangFuse: falha ao buscar output da trace '{}' - {}", traceId, e.getMessage());
+            return new RunItemScore(datasetItemId, traceId, null, null);
+        }
+    }
+
+    /**
+     * Busca a versao de prompt usada numa trace, lendo a observation do tipo GENERATION.
+     * Como todos os itens de um mesmo run usam a mesma versao de prompt, uma trace representativa
+     * ja e suficiente — nao precisa buscar item por item.
+     */
+    public Optional<Integer> fetchPromptVersion(String traceId) {
+        if (!properties.isEnabled() || traceId == null) return Optional.empty();
+        try {
+            String url = UriComponentsBuilder
+                    .fromHttpUrl(properties.getHost() + "/api/public/observations")
+                    .queryParam("traceId", traceId)
+                    .queryParam("limit", 20)
+                    .toUriString();
+            ResponseEntity<String> response = restTemplate.exchange(
+                    url, HttpMethod.GET, new HttpEntity<>(authHeaders()), String.class);
+            JsonNode root = objectMapper.readTree(response.getBody());
+            for (JsonNode obs : root.path("data")) {
+                if (obs.hasNonNull("promptVersion")) {
+                    return Optional.of(obs.path("promptVersion").asInt());
+                }
+            }
+            return Optional.empty();
+        } catch (Exception e) {
+            log.warn("LangFuse: falha ao buscar promptVersion da trace '{}' - {}", traceId, e.getMessage());
+            return Optional.empty();
         }
     }
 
