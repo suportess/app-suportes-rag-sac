@@ -26,11 +26,24 @@ public class OpenAiConfig {
     public static class AiProperties {
         private String provider;
         private OpenAi openai = new OpenAi();
+        private OpenRouter openrouter = new OpenRouter();
 
         @Data
         public static class OpenAi {
             private String apiKey;
             private String model = "gpt-4.1-mini";
+            private double temperature = 0.0;
+            private int timeoutSeconds = 120;
+            private int maxRetries = 3;
+        }
+
+        @Data
+        public static class OpenRouter {
+            private String apiKey;
+            private String model = "openai/gpt-4.1-mini";
+            private String baseUrl = "https://openrouter.ai/api/v1/chat/completions";
+            private String referer = "http://localhost";
+            private String title = "sap-spec-validator";
             private double temperature = 0.0;
             private int timeoutSeconds = 120;
             private int maxRetries = 3;

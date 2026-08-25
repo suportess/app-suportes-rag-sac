@@ -30,8 +30,6 @@ import java.util.UUID;
 @Component
 public class OpenAiProviderClient implements AiProviderClient {
 
-    private static final String OPENAI_URL = "https://api.openai.com/v1/chat/completions";
-
     private final OpenAiConfig.AiProperties aiProperties;
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
@@ -48,25 +46,25 @@ public class OpenAiProviderClient implements AiProviderClient {
         this.aiResponseParser = aiResponseParser;
         this.langFuseClient = langFuseClient;
         this.restTemplate = restTemplateBuilder
-                .setConnectTimeout(Duration.ofSeconds(aiProperties.getOpenai().getTimeoutSeconds()))
-                .setReadTimeout(Duration.ofSeconds(aiProperties.getOpenai().getTimeoutSeconds()))
+            .setConnectTimeout(Duration.ofSeconds(aiProperties.getOpenrouter().getTimeoutSeconds()))
+            .setReadTimeout(Duration.ofSeconds(aiProperties.getOpenrouter().getTimeoutSeconds()))
                 .build();
     }
 
     @Override
     public AiValidationResponse validateFunctionalSpecification(AiValidationRequest request) {
-        String apiKey = aiProperties.getOpenai().getApiKey();
+        String apiKey = aiProperties.getOpenrouter().getApiKey();
         if (apiKey == null || apiKey.isBlank()) {
-            throw new AiProviderException("OPENAI_API_KEY nao configurada. Defina a variavel de ambiente OPENAI_API_KEY.");
+            throw new AiProviderException("OPENROUTER_API_KEY nao configurada. Defina a variavel de ambiente OPENROUTER_API_KEY.");
         }
 
-        int maxRetries = aiProperties.getOpenai().getMaxRetries();
+        int maxRetries = aiProperties.getOpenrouter().getMaxRetries();
         String traceId = request.getTraceId();
         AiProviderException lastException = null;
 
         for (int attempt = 1; attempt <= maxRetries; attempt++) {
             try {
-                log.info("Chamando provider IA (tentativa {}/{}), modelo: {}", attempt, maxRetries, aiProperties.getOpenai().getModel());
+                log.info("Chamando provider IA (tentativa {}/{}), modelo: {}", attempt, maxRetries, aiProperties.getOpenrouter().getModel());
                 return doCall(apiKey, request, traceId);
             } catch (AiProviderException e) {
                 lastException = e;
@@ -83,8 +81,8 @@ public class OpenAiProviderClient implements AiProviderClient {
     }
 
     private AiValidationResponse doCall(String apiKey, AiValidationRequest request, String traceId) {
-        String model = aiProperties.getOpenai().getModel();
-        double temperature = aiProperties.getOpenai().getTemperature();
+        String model = aiProperties.getOpenrouter().getModel();
+        double temperature = aiProperties.getOpenrouter().getTemperature();
 
         List<Map<String, Object>> messages = List.of(
                 Map.of("role", "system", "content", request.getSystemPrompt()),
@@ -99,6 +97,8 @@ public class OpenAiProviderClient implements AiProviderClient {
         HttpHeaders headers = new HttpHeaders();
         headers.setBearerAuth(apiKey);
         headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("HTTP-Referer", aiProperties.getOpenrouter().getReferer());
+        headers.set("X-Title", aiProperties.getOpenrouter().getTitle());
 
         Map<String, Object> body = new HashMap<>();
         body.put("model", model);
@@ -107,7 +107,7 @@ public class OpenAiProviderClient implements AiProviderClient {
 
         try {
             ResponseEntity<String> response = restTemplate.exchange(
-                    OPENAI_URL,
+                    aiProperties.getOpenrouter().getBaseUrl(),
                     HttpMethod.POST,
                     new HttpEntity<>(body, headers),
                     String.class

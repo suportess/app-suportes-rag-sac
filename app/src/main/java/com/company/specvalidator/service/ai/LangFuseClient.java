@@ -155,7 +155,7 @@ public class LangFuseClient {
             Map<String, Object> genBody = new HashMap<>();
             genBody.put("id", generationId);
             genBody.put("traceId", traceId);
-            genBody.put("name", "openai-completion");
+            genBody.put("name", "llm-chat-completion");
             genBody.put("model", model);
             genBody.put("modelParameters", Map.of("temperature", temperature));
             genBody.put("input", messages);

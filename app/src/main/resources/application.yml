@@ -58,10 +58,13 @@ app:
     base-path: ${STORAGE_PATH:./uploads}
 
   ai:
-    provider: openai
-    openai:
-      api-key: ${OPENAI_API_KEY:}
-      model: ${OPENAI_MODEL:gpt-4.1-mini}
+    provider: openrouter
+    openrouter:
+      api-key: ${OPENROUTER_API_KEY:${OPENAI_API_KEY:}}
+      model: ${OPENROUTER_MODEL:${OPENAI_MODEL:openai/gpt-4.1-mini}}
+      base-url: ${OPENROUTER_BASE_URL:https://openrouter.ai/api/v1/chat/completions}
+      referer: ${OPENROUTER_REFERER:http://localhost}
+      title: ${OPENROUTER_TITLE:sap-spec-validator}
       temperature: 0.0
       timeout-seconds: 120
       max-retries: 3
