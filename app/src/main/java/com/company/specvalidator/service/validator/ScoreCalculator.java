@@ -81,7 +81,7 @@ public class ScoreCalculator {
         if (score <= 39) {
             return ValidationStatus.REPROVADO;
         }
-        if (score <= 60) {
+        if (score <= 69) {
             return ValidationStatus.ACEITAVEL;
         }
         return ValidationStatus.APROVADO;

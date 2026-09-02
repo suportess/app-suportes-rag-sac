@@ -169,12 +169,12 @@ class ScoreCalculatorTest {
     @Test
     void testClassificacaoAceitavelBetween40And60() {
         assertEquals(ValidationStatus.ACEITAVEL, calculator.calculateClassificacao(40));
-        assertEquals(ValidationStatus.ACEITAVEL, calculator.calculateClassificacao(60));
+        assertEquals(ValidationStatus.ACEITAVEL, calculator.calculateClassificacao(69));
     }
 
     @Test
     void testClassificacaoAprovadoAbove60() {
-        assertEquals(ValidationStatus.APROVADO, calculator.calculateClassificacao(61));
+        assertEquals(ValidationStatus.APROVADO, calculator.calculateClassificacao(70));
         assertEquals(ValidationStatus.APROVADO, calculator.calculateClassificacao(100));
     }
 
